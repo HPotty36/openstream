@@ -180,6 +180,11 @@ private fun Root(app: App) {
                                 app.downloads.start(item, option)
                                 android.widget.Toast.makeText(app, "다운로드를 시작했습니다. 보관함에서 진행 상황을 볼 수 있습니다.", android.widget.Toast.LENGTH_SHORT).show()
                             },
+                            skipSegments = { item ->
+                                val videoId = dev.openstream.sponsor.youtubeVideoId(item.id)
+                                    ?.takeIf { item.platform == dev.openstream.platform.PlatformId.YOUTUBE && app.settings.sponsorBlock.value }
+                                if (videoId == null) emptyList() else app.sponsorBlock.segments(videoId)
+                            },
                             onChannel = { stack.add(Screen.OfChannel(it)) },
                         )
                     }

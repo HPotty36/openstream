@@ -31,6 +31,22 @@ class AppSettings(context: Context, private val secrets: SecretStore, prefsName:
         _showAgeRestricted.value = on
     }
 
+    private val _sponsorBlock = MutableStateFlow(prefs.getBoolean("sponsor_block", true))
+    val sponsorBlock: StateFlow<Boolean> = _sponsorBlock
+
+    fun setSponsorBlock(on: Boolean) {
+        prefs.edit().putBoolean("sponsor_block", on).apply()
+        _sponsorBlock.value = on
+    }
+
+    private val _notifyUpdates = MutableStateFlow(prefs.getBoolean("notify_updates", false))
+    val notifyUpdates: StateFlow<Boolean> = _notifyUpdates
+
+    fun setNotifyUpdates(on: Boolean) {
+        prefs.edit().putBoolean("notify_updates", on).apply()
+        _notifyUpdates.value = on
+    }
+
     private var apiKey: String? = prefs.getString("api_key_enc", null)?.let { runCatching { secrets.decrypt(it) }.getOrNull() }
     private val _apiKeyHint = MutableStateFlow(hint())
 

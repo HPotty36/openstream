@@ -69,10 +69,16 @@ class FeedRefresher(
     var failed by mutableIntStateOf(0); private set
 
     fun refresh() {
-        if (refreshing) return
+        scope.launch { refreshNow() }
+    }
+
+    /** Returns what was not in the feed before; empty on the very first refresh, when everything would be new. */
+    suspend fun refreshNow(): List<StreamItem> {
+        if (refreshing) return emptyList()
         refreshing = true
-        scope.launch {
+        run {
             try {
+                val known = library.feedKeys()
                 val failures = AtomicInteger()
                 val gate = Semaphore(8)
                 val items = coroutineScope {
@@ -87,7 +93,9 @@ class FeedRefresher(
                 }
                 library.refreshFeed(items)
                 failed = failures.get()
+                val first = settings.lastFeedRefresh == 0L
                 settings.lastFeedRefresh = System.currentTimeMillis()
+                return if (first) emptyList() else items.filter { "${it.platform.id}|${it.id}" !in known }
             } finally {
                 refreshing = false
             }

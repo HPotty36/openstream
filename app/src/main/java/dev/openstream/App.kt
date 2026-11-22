@@ -38,6 +38,14 @@ class App : Application() {
 
     val feed: FeedRefresher by lazy { FeedRefresher(library, ::platform, settings, scope) }
 
+    val sponsorBlock: dev.openstream.sponsor.SponsorBlock by lazy { dev.openstream.sponsor.SponsorBlock(http) }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Keeps the background check registered across updates and restarts; it does nothing when the switch is off.
+        if (settings.notifyUpdates.value) dev.openstream.notify.scheduleUpdates(this, true)
+    }
+
     /** Key codes of player shortcuts, from the activity that sees the keys to the video that acts on them. */
     val playerKeys = MutableSharedFlow<Int>(extraBufferCapacity = 8)
     /** True while a video is the screen in front; only then do the shortcut keys belong to the player. */

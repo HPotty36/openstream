@@ -21,6 +21,8 @@ import dev.openstream.library.ItemList
 import dev.openstream.library.Library
 import dev.openstream.platform.ItemKind
 import dev.openstream.platform.DownloadOption
+import dev.openstream.sponsor.SkipSegment
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -133,6 +135,7 @@ fun WatchScreen(
     library: Library,
     onProgress: (StreamItem, Long) -> Unit,
     onDownload: (StreamItem, DownloadOption) -> Unit,
+    skipSegments: suspend (StreamItem) -> List<SkipSegment>,
     onChannel: (Channel) -> Unit,
 ) {
     val context = LocalContext.current
@@ -206,6 +209,26 @@ fun WatchScreen(
         while (true) {
             delay(10_000)
             if (player.isPlaying) onProgress(watched, player.currentPosition)
+        }
+    }
+    // Jumps over the stretches viewers marked as sponsor reads.
+    LaunchedEffect(playback) {
+        val watched = playback?.item ?: return@LaunchedEffect
+        val segments = try {
+            skipSegments(watched)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
+        if (segments.isEmpty()) return@LaunchedEffect
+        while (true) {
+            delay(300)
+            val at = player.currentPosition
+            // Not in its last second: seeking back into a segment's end should not skip again.
+            val segment = segments.firstOrNull { at >= it.startMs && at < it.endMs - 1000 } ?: continue
+            player.seekTo(segment.endMs)
+            Toast.makeText(context, "스폰서 구간을 건너뛰었습니다.", Toast.LENGTH_SHORT).show()
         }
     }
     val toggleLater: () -> Unit = {

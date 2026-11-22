@@ -70,6 +70,37 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
             Switch(showAgeRestricted, settings::setShowAgeRestricted)
         }
 
+        val sponsorBlock by settings.sponsorBlock.collectAsState()
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("스폰서 구간 건너뛰기")
+                Note("YouTube 영상에서 SponsorBlock에 등록된 광고 구간을 건너뜁니다. 어떤 영상인지 서버가 알 수 없게 영상 ID 해시의 앞부분만 보냅니다.")
+            }
+            Switch(sponsorBlock, settings::setSponsorBlock)
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Section("알림")
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val notify by settings.notifyUpdates.collectAsState()
+        fun setNotify(on: Boolean) {
+            settings.setNotifyUpdates(on)
+            dev.openstream.notify.scheduleUpdates(context, on)
+        }
+        val askPermission = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+        ) { granted -> setNotify(granted) }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("새 영상·방송 알림")
+                Note("구독한 채널을 30분마다 확인해서 방송이 시작되거나 새 영상이 올라오면 알립니다.")
+            }
+            Switch(notify, { on ->
+                if (on && android.os.Build.VERSION.SDK_INT >= 33) askPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                else setNotify(on)
+            })
+        }
+
         Spacer(Modifier.height(8.dp))
         Section("구독과 백업")
         DataSection(library, onImported)

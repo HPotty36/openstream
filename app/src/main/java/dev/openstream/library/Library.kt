@@ -118,6 +118,13 @@ class Library(context: Context, name: String? = "library.db") : SQLiteOpenHelper
         db.delete("items", "list=? AND platform=? AND item_id=?", arrayOf(list.id, item.platform.id, item.id))
     }
 
+    /** "platform|id" of everything in the feed, to tell afterwards what a refresh added. */
+    suspend fun feedKeys(): Set<String> = read { db ->
+        db.rawQuery("SELECT platform, item_id FROM items WHERE list='feed'", null).use { c ->
+            buildSet { while (c.moveToNext()) add("${c.getString(0)}|${c.getString(1)}") }
+        }
+    }
+
     /** Replaces what the feed knows about live broadcasts, so one that has ended does not stay listed. */
     suspend fun refreshFeed(items: List<StreamItem>) {
         write { db -> db.delete("items", "list='feed' AND kind='LIVE'", null) }
