@@ -34,7 +34,7 @@ Requires Android 8.0 or later. Later versions install from **Settings → Update
 ## Features
 
 ### A home screen of subscriptions only
-Uploads from the channels you subscribed to, newest first. No recommendations, no trending, no live streams from channels you do not follow. Channels that are live move to the front of the row at the top; **전체** next to it lists every subscription by platform, with a name filter. Shorts appear only for subscribed channels and are left out of search.
+Uploads from the channels you subscribed to, newest first. No recommendations, no trending, no live streams from channels you do not follow. Channels that are live move to the front of the row at the top and open straight into the broadcast (hold one for its channel); **전체** next to it lists every subscription by platform, with a name filter. Shorts appear only for subscribed channels and are left out of search.
 
 ### Three platforms
 | | Search | Videos | Live | Chat and comments | Download |

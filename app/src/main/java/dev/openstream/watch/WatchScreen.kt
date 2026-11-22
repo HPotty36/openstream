@@ -124,6 +124,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private val http = DefaultHttpDataSource.Factory().setUserAgent(USER_AGENT).setAllowCrossProtocolRedirects(true)
+// Whole files are read piece by piece, which YouTube sends at full speed (see YouTubePieces).
+private val pieced = androidx.media3.datasource.DataSource.Factory { PiecedDataSource(http.createDataSource()) }
 
 private fun mediaSource(source: Source): MediaSource {
     val item = MediaItem.fromUri(source.url)
@@ -131,8 +133,8 @@ private fun mediaSource(source: Source): MediaSource {
         SourceType.HLS -> HlsMediaSource.Factory(http).createMediaSource(item)
         SourceType.DASH -> DashMediaSource.Factory(http).createMediaSource(item)
         SourceType.PROGRESSIVE -> {
-            val video = ProgressiveMediaSource.Factory(http).createMediaSource(item)
-            val audio = source.audioUrl?.let { ProgressiveMediaSource.Factory(http).createMediaSource(MediaItem.fromUri(it)) }
+            val video = ProgressiveMediaSource.Factory(pieced).createMediaSource(item)
+            val audio = source.audioUrl?.let { ProgressiveMediaSource.Factory(pieced).createMediaSource(MediaItem.fromUri(it)) }
             if (audio == null) video else MergingMediaSource(video, audio)
         }
     }

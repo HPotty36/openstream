@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.openstream.library.ItemList
 import dev.openstream.library.Library
+import dev.openstream.library.liveItems
 import dev.openstream.platform.Channel
 import dev.openstream.platform.PlatformId
 import dev.openstream.platform.StreamItem
@@ -182,6 +184,8 @@ fun FeedScreen(
     val changes by library.changes.collectAsState()
     val channels by produceState<List<Channel>?>(null, changes) { value = library.subscriptions() }
     val items by produceState<List<StreamItem>?>(null, changes, shorts) { value = library.items(ItemList.FEED, shorts = shorts) }
+    // Read apart from the list above, so the shorts tab keeps them too.
+    val live by produceState(emptyMap<Pair<PlatformId, String>, StreamItem>(), changes) { value = library.liveItems() }
     val subscribed = channels?.isNotEmpty()
     LaunchedEffect(subscribed) { if (subscribed == true) refresher.refreshIfStale() }
     LaunchedEffect(channels) { if (channels.orEmpty().any { it.avatarUrl == null }) refresher.fillAvatars() }
@@ -220,15 +224,23 @@ fun FeedScreen(
         if (subscribed == false) {
             Welcome(library, onImported = refresher::refresh, onSearch = onSearch)
         } else if (list != null && all != null) {
-            // Channels that are on air now come first and carry the accent ring.
-            val live = remember(list) { list.filter { it.kind == ItemKind.LIVE }.map { it.channel.platform to it.channel.id }.toSet() }
+            // Channels that are on air now come first, carry the accent ring and open straight into the
+            // broadcast; holding one opens the channel instead.
             val strip = remember(all, live) { all.sortedByDescending { (it.platform to it.id) in live } }
             val head: @Composable () -> Unit = {
                 Column {
                     Row(verticalAlignment = Alignment.Top) {
                         // 10 + the cell's own 6 puts the first picture on the 16dp line the logo and the thumbnails start at.
                         LazyRow(Modifier.weight(1f), contentPadding = PaddingValues(start = 10.dp, end = 4.dp)) {
-                            items(strip) { channel -> StripChannel(channel, (channel.platform to channel.id) in live) { onChannel(channel) } }
+                            items(strip) { channel ->
+                                val broadcast = live[channel.platform to channel.id]
+                                StripChannel(
+                                    channel,
+                                    live = broadcast != null,
+                                    onClick = { if (broadcast != null) onItem(broadcast) else onChannel(channel) },
+                                    onLongClick = { onChannel(channel) },
+                                )
+                            }
                         }
                         // Stays put while the row scrolls, level with the pictures.
                         TextButton(onClick = onAllChannels, modifier = Modifier.padding(top = 20.dp, end = 4.dp)) { Text("전체") }
@@ -267,9 +279,11 @@ fun FeedScreen(
 
 /** One subscribed channel in the row above the feed. */
 @Composable
-private fun StripChannel(channel: Channel, live: Boolean, onClick: () -> Unit) {
+private fun StripChannel(channel: Channel, live: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     Column(
-        Modifier.width(76.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 8.dp),
+        Modifier.width(76.dp).clip(RoundedCornerShape(8.dp))
+            .combinedClickable(onLongClickLabel = "채널 열기", onLongClick = onLongClick, onClick = onClick)
+            .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {

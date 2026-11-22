@@ -45,7 +45,11 @@ fun buildPlayer(context: Context): ExoPlayer =
         .setHandleAudioBecomingNoisy(true)
         // Keeps the network awake while sound plays with the screen off.
         .setWakeMode(C.WAKE_MODE_NETWORK)
-        .build().apply { playWhenReady = true }
+        .build().apply {
+            playWhenReady = true
+            // Debug builds log every load, stall and error under the EventLogger tag.
+            if (dev.openstream.BuildConfig.DEBUG) addAnalyticsListener(androidx.media3.exoplayer.util.EventLogger())
+        }
 
 /**
  * What every player screen does around its player: the keyboard shortcuts, pausing when covered,

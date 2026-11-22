@@ -36,13 +36,17 @@ import androidx.compose.ui.unit.dp
 import dev.openstream.platform.Channel
 import dev.openstream.platform.ItemKind
 import dev.openstream.platform.PlatformId
+import dev.openstream.platform.StreamItem
 import dev.openstream.translate.LocalAutoTranslate
 import dev.openstream.translate.TextKind
 import dev.openstream.ui.ChannelRow
 
+/** The live broadcasts in the feed right now, keyed by the platform and id of their channel. */
+suspend fun Library.liveItems(): Map<Pair<PlatformId, String>, StreamItem> =
+    items(ItemList.FEED).filter { it.kind == ItemKind.LIVE }.associateBy { it.channel.platform to it.channel.id }
+
 /** Channels that have a live broadcast in the feed right now, as platform and channel id. */
-suspend fun Library.liveChannels(): Set<Pair<PlatformId, String>> =
-    items(ItemList.FEED).filter { it.kind == ItemKind.LIVE }.map { it.channel.platform to it.channel.id }.toSet()
+suspend fun Library.liveChannels(): Set<Pair<PlatformId, String>> = liveItems().keys
 
 /**
  * Subscribed channels in one block per platform, live ones first in each, then by name.
