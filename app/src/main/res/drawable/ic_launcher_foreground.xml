@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder mark: a play triangle. The real logo comes with the design pass. -->
+<!-- An open ring with a play mark inside: the stream is not closed in. Drawn inside the 66dp safe circle. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#FF6B5E"
-        android:pathData="M44,38 L72,54 L44,70 Z" />
+        android:pathData="M72.54,46.51 A20,20 0 1 1 61.49,35.46"
+        android:strokeColor="#FF6B5E"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M49.5,45.5 L49.5,62.5 L64,54 Z"
+        android:fillColor="#F5F5F5"
+        android:strokeColor="#F5F5F5"
+        android:strokeWidth="4.4"
+        android:strokeLineJoin="round" />
 </vector>

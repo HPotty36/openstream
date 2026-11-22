@@ -229,6 +229,7 @@ private fun Root(app: App) {
                                 if (videoId == null) emptyList() else app.sponsorBlock.segments(videoId)
                             },
                             onChannel = { stack.add(Screen.OfChannel(it)) },
+                            onSubscribed = app.feed::add,
                         )
                         is Screen.Local -> LocalScreen(
                             screen.file.uri, screen.file.title,

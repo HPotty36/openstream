@@ -23,6 +23,24 @@ import dev.openstream.platform.ItemKind
 import dev.openstream.platform.DownloadOption
 import dev.openstream.sponsor.SkipSegment
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -139,6 +157,7 @@ fun WatchScreen(
     onDownload: (StreamItem, DownloadOption) -> Unit,
     skipSegments: suspend (StreamItem) -> List<SkipSegment>,
     onChannel: (Channel) -> Unit,
+    onSubscribed: (Channel) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -286,6 +305,18 @@ fun WatchScreen(
     }
 
     val shown = playback?.item ?: item
+    val libraryChanges by library.changes.collectAsState()
+    val channel = shown.channel
+    val subscribed by produceState<Boolean?>(null, libraryChanges, channel.id) {
+        value = if (channel.id.isEmpty()) null else library.isSubscribed(channel)
+    }
+    val toggleSubscribed: () -> Unit = {
+        val now = subscribed
+        scope.launch {
+            if (now == true) library.unsubscribe(channel)
+            else if (now == false) { library.subscribe(listOf(channel)); onSubscribed(channel) }
+        }
+    }
     // A live broadcast has no file to save.
     val downloadOptions: (suspend () -> List<DownloadOption>)? =
         if (shown.kind == ItemKind.LIVE) null else ({ platform.downloads(shown.id) })
@@ -297,7 +328,7 @@ fun WatchScreen(
                 Box(Modifier.fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
                     playerBox(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp).aspectRatio(16f / 9f))
                 }
-                Header(shown, playback, source, { source = it }, onChannel, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
             else Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
@@ -305,7 +336,7 @@ fun WatchScreen(
         else -> Column(Modifier.fillMaxSize()) {
             playerBox(Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f))
             val header: @Composable () -> Unit = {
-                Header(shown, playback, source, { source = it }, onChannel, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
                 HorizontalDivider()
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), header)
@@ -412,6 +443,21 @@ private fun Comments(
     }
 }
 
+/** One action under a video: an icon and a word, in a quiet outline so the row does not shout. */
+@Composable
+private fun Action(icon: ImageVector, label: String, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
 @Composable
 private fun Header(
     item: StreamItem,
@@ -419,6 +465,8 @@ private fun Header(
     source: Source?,
     onSource: (Source) -> Unit,
     onChannel: (Channel) -> Unit,
+    subscribed: Boolean?,
+    onSubscribe: () -> Unit,
     later: Boolean,
     onLater: () -> Unit,
     downloadOptions: (suspend () -> List<DownloadOption>)?,
@@ -426,21 +474,48 @@ private fun Header(
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Text(item.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp))
-        Row(Modifier.padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        val published = item.published()
+        if (published != null) {
             Text(
-                item.published().orEmpty(),
+                published,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
             )
-            TextButton(onClick = onLater) { Text(if (later) "저장됨" else "나중에 보기") }
+        }
+        val channel = item.channel
+        Row(
+            Modifier.fillMaxWidth().clickable(enabled = channel.id.isNotEmpty()) { onChannel(channel) }
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Avatar(channel.avatarUrl, 36.dp)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                channel.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(end = 12.dp),
+            )
+            when (subscribed) {
+                true -> OutlinedButton(onClick = onSubscribe) { Text("구독 중") }
+                false -> Button(onClick = onSubscribe) { Text("구독") }
+                null -> {}
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Action(if (later) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, if (later) "저장됨" else "나중에 보기", onLater)
             if (downloadOptions != null) {
                 val scope = rememberCoroutineScope()
                 var open by remember { mutableStateOf(false) }
                 var options by remember { mutableStateOf<List<DownloadOption>?>(null) }
                 var failed by remember { mutableStateOf(false) }
                 Box {
-                    TextButton(onClick = {
+                    Action(Icons.Outlined.Download, "다운로드") {
                         open = true
                         if (options == null) scope.launch {
                             failed = false
@@ -453,7 +528,7 @@ private fun Header(
                                 null
                             }
                         }
-                    }) { Text("다운로드") }
+                    }
                     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                         val list = options
                         when {
@@ -470,7 +545,7 @@ private fun Header(
             if (playback != null && source != null && playback.sources.size > 1) {
                 var open by remember { mutableStateOf(false) }
                 Box {
-                    TextButton(onClick = { open = true }) { Text("화질 ${source.label()}") }
+                    Action(Icons.Outlined.Tune, source.label()) { open = true }
                     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                         playback.sources.forEach { option ->
                             DropdownMenuItem(text = { Text(option.label()) }, onClick = { open = false; onSource(option) })
@@ -479,29 +554,44 @@ private fun Header(
                 }
             }
         }
-        val channel = item.channel
-        Row(
-            Modifier.fillMaxWidth().clickable(enabled = channel.id.isNotEmpty()) { onChannel(channel) }
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Avatar(channel.avatarUrl, 36.dp)
-            Spacer(Modifier.width(12.dp))
-            Text(channel.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
         val description = playback?.description.orEmpty()
         if (description.isNotBlank()) {
             var expanded by remember { mutableStateOf(false) }
-            Text(
-                description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = if (expanded) Int.MAX_VALUE else 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+            var cut by remember { mutableStateOf(false) }
+            Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (expanded) Int.MAX_VALUE else 3,
+                    overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { if (!expanded) cut = it.hasVisualOverflow },
+                )
+                if (cut) {
+                    Text(
+                        if (expanded) "접기" else "더보기",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+        } else {
+            Spacer(Modifier.height(12.dp))
         }
     }
+}
+
+/** A small action under a comment. Every comment's row is this high, with or without actions. */
+@Composable
+private fun CommentAction(label: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelMedium,
+        color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+    )
 }
 
 @Composable
@@ -541,7 +631,7 @@ private fun CommentRow(
                 )
                 else -> {}
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
                 val likes = comment.likeCount
                 if (likes != null && likes > 0) {
                     Text(
@@ -552,16 +642,14 @@ private fun CommentRow(
                     )
                 }
                 if (onReplies != null && comment.repliesPage != null) {
-                    TextButton(onClick = onReplies) {
-                        Text(if (repliesOpen) "답글 접기" else if (comment.replyCount > 0) "답글 ${comment.replyCount}개" else "답글")
-                    }
+                    CommentAction(if (repliesOpen) "답글 접기" else if (comment.replyCount > 0) "답글 ${comment.replyCount}개" else "답글", onClick = onReplies)
                 }
                 if (canTranslate && needsTranslation(comment.text)) {
                     when (translation) {
-                        Translation.Loading -> TextButton(onClick = {}, enabled = false) { Text("번역 중") }
-                        is Translation.Done -> TextButton(onClick = onHide) { Text("번역 숨기기") }
-                        is Translation.Failed -> TextButton(onClick = onTranslate) { Text("다시 번역") }
-                        null -> TextButton(onClick = onTranslate) { Text("번역") }
+                        Translation.Loading -> CommentAction("번역 중", enabled = false) {}
+                        is Translation.Done -> CommentAction("번역 숨기기", onClick = onHide)
+                        is Translation.Failed -> CommentAction("다시 번역", onClick = onTranslate)
+                        null -> CommentAction("번역", onClick = onTranslate)
                     }
                 }
             }

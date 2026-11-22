@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.ui.composed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -64,9 +68,38 @@ fun Avatar(url: String?, size: Dp, modifier: Modifier = Modifier) {
     )
 }
 
+/** The one chip of the app: the chosen one is filled light, so it reads at a glance on black. */
+@Composable
+fun SelectChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = label,
+        shape = RoundedCornerShape(8.dp),
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.onSurface,
+            selectedLabelColor = MaterialTheme.colorScheme.surface,
+        ),
+    )
+}
+
+/** The line under a title: platform (in lists that mix platforms), channel, age. */
+fun StreamItem.meta(showChannel: Boolean, showPlatform: Boolean): String = listOfNotNull(
+    platform.label.takeIf { showPlatform },
+    channel.name.takeIf { showChannel && it.isNotEmpty() },
+    published(),
+).joinToString(" · ")
+
+/** The frame every thumbnail sits in: a thin edge keeps dark pictures from melting into the black background. */
+fun Modifier.thumbnailFrame(): Modifier = composed {
+    aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+}
+
 @Composable
 fun Thumbnail(item: StreamItem, modifier: Modifier = Modifier) {
-    Box(modifier.aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
+    Box(modifier.thumbnailFrame()) {
         AsyncImage(item.thumbnailUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         val badge = when {
             item.kind == ItemKind.LIVE -> "LIVE"
@@ -76,7 +109,8 @@ fun Thumbnail(item: StreamItem, modifier: Modifier = Modifier) {
         if (badge != null) {
             Text(
                 badge,
-                color = Color.White,
+                // Black on the light red of the live badge; white there is too faint to read.
+                color = if (item.kind == ItemKind.LIVE) Color.Black else Color.White,
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
                     .background(
@@ -90,13 +124,13 @@ fun Thumbnail(item: StreamItem, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun VideoRow(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true) {
+fun VideoRow(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true, showPlatform: Boolean = false) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp)) {
         Thumbnail(item, Modifier.width(152.dp))
         Spacer(Modifier.width(12.dp))
         Column {
             Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            val meta = listOfNotNull(item.channel.name.takeIf { showChannel && it.isNotEmpty() }, item.published()).joinToString(" · ")
+            val meta = item.meta(showChannel, showPlatform)
             if (meta.isNotEmpty()) {
                 Text(
                     meta,

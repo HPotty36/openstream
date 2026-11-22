@@ -3,6 +3,8 @@ package dev.openstream.ui
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -52,6 +54,17 @@ private val Dark = darkColorScheme(
     errorContainer = Color(0xFF5C1A14), onErrorContainer = Color(0xFFFFDAD6),
 )
 
+// Korean reads badly when a line ends in the middle of a word, so running text breaks between words.
+private val ByWord = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)
+private val AppTypography = Typography().run {
+    copy(
+        bodyLarge = bodyLarge.copy(lineBreak = ByWord),
+        bodyMedium = bodyMedium.copy(lineBreak = ByWord),
+        bodySmall = bodySmall.copy(lineBreak = ByWord),
+        titleMedium = titleMedium.copy(lineBreak = ByWord),
+    )
+}
+
 @Composable
 fun AppTheme(mode: ThemeMode, content: @Composable () -> Unit) {
     val dark = when (mode) {
@@ -68,5 +81,5 @@ fun AppTheme(mode: ThemeMode, content: @Composable () -> Unit) {
             isAppearanceLightNavigationBars = !dark
         }
     }
-    MaterialTheme(colorScheme = if (dark) Dark else Light, content = content)
+    MaterialTheme(colorScheme = if (dark) Dark else Light, typography = AppTypography, content = content)
 }

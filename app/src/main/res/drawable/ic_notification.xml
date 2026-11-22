@@ -1,10 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher mark at status-bar size. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
     <path
+        android:pathData="M20.34,8.63 A9,9 0 1 1 15.37,3.66"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M10,8.4 L10,15.6 L16,12 Z"
         android:fillColor="#FFFFFF"
-        android:pathData="M8,5 L19,12 L8,19 Z" />
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.4"
+        android:strokeLineJoin="round" />
 </vector>

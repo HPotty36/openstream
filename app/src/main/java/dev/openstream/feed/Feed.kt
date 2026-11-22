@@ -18,7 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
+import dev.openstream.ui.SelectChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -129,8 +129,8 @@ fun FeedScreen(library: Library, refresher: FeedRefresher, onItem: (StreamItem) 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FilterChip(selected = !shorts, onClick = { shorts = false }, label = { Text("동영상") })
-            FilterChip(selected = shorts, onClick = { shorts = true }, label = { Text("쇼츠") })
+            SelectChip(selected = !shorts, onClick = { shorts = false }, label = { Text("동영상") })
+            SelectChip(selected = shorts, onClick = { shorts = true }, label = { Text("쇼츠") })
             Spacer(Modifier.weight(1f))
             if (refresher.failed > 0 && !refresher.refreshing) {
                 Text(
@@ -155,9 +155,9 @@ fun FeedScreen(library: Library, refresher: FeedRefresher, onItem: (StreamItem) 
             list == null -> {}
             list.isEmpty() -> Message(if (refresher.refreshing) "새 영상을 불러오는 중입니다." else if (shorts) "새 쇼츠가 없습니다." else "새 영상이 없습니다.")
             windowLayout().tablet -> LazyVerticalGrid(GridCells.Adaptive(260.dp), contentPadding = PaddingValues(8.dp)) {
-                gridItems(list) { item -> VideoCard(item, onClick = { onItem(item) }) }
+                gridItems(list) { item -> VideoCard(item, onClick = { onItem(item) }, showPlatform = true) }
             }
-            else -> LazyColumn { items(list) { item -> VideoRow(item, onClick = { onItem(item) }) } }
+            else -> LazyColumn { items(list) { item -> VideoRow(item, onClick = { onItem(item) }, showPlatform = true) } }
         }
     }
 }

@@ -97,7 +97,13 @@ fun ChannelScreen(
         }
         PrimaryTabRow(selectedTabIndex = TABS.indexOfFirst { it.first == selected }) {
             TABS.forEach { (tab, label) ->
-                Tab(selected = selected == tab, onClick = { selected = tab }, text = { Text(label) })
+                Tab(
+                    selected = selected == tab,
+                    onClick = { selected = tab },
+                    text = { Text(label) },
+                    // Only the open tab carries the accent; the others stay quiet.
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         val list = lists.getValue(selected)

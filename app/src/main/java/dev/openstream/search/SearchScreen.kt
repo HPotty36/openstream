@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.FilterChip
+import dev.openstream.ui.SelectChip
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -93,7 +93,7 @@ fun SearchScreen(state: SearchState, onChannel: (Channel) -> Unit, onItem: (Stre
         )
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.platforms.forEach { platform ->
-                FilterChip(
+                SelectChip(
                     selected = state.platform === platform,
                     onClick = { state.choose(platform) },
                     label = { Text(platform.id.label) },

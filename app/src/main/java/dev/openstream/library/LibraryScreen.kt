@@ -15,7 +15,18 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.FilterChip
+import dev.openstream.ui.SelectChip
+import dev.openstream.ui.thumbnailFrame
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,7 +53,7 @@ import dev.openstream.ui.VideoRow
 import dev.openstream.ui.windowLayout
 import kotlinx.coroutines.launch
 
-private enum class Section(val label: String) { CHANNELS("구독 채널"), LATER("나중에 볼 영상"), HISTORY("시청 기록"), DOWNLOADS("다운로드") }
+private enum class Section(val label: String) { CHANNELS("채널"), LATER("나중에 보기"), HISTORY("기록"), DOWNLOADS("다운로드") }
 
 /** What is kept on the device in place of an account: the subscriptions, the saved videos and the history. */
 @Composable
@@ -65,7 +76,7 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Section.entries.forEach {
-                FilterChip(selected = section == it, onClick = { section = it }, label = { Text(it.label) })
+                SelectChip(selected = section == it, onClick = { section = it }, label = { Text(it.label) })
             }
             if (section == Section.HISTORY) {
                 TextButton(onClick = { scope.launch { library.clear(ItemList.HISTORY) } }) { Text("기록 지우기") }
@@ -93,20 +104,34 @@ fun LibraryScreen(
                         }
                     }
                     items(saved.orEmpty()) { file ->
-                        Row(
-                            Modifier.fillMaxWidth().clickable { onLocal(file) }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                        // The same row as every other list of videos, with the picture taken from the file.
+                        Row(Modifier.fillMaxWidth().clickable { onLocal(file) }.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)) {
+                            val still by produceState<android.graphics.Bitmap?>(null, file.uri) { value = downloads.thumbnail(file) }
+                            Box(Modifier.width(152.dp).thumbnailFrame(), contentAlignment = Alignment.Center) {
+                                val picture = still
+                                if (picture != null) {
+                                    Image(picture.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                } else if (file.audioOnly) {
+                                    Text("소리만", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(file.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                                Text(file.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 val details = listOfNotNull(
-                                    if (file.audioOnly) "소리만" else "영상",
                                     file.durationMs?.let { formatDuration(it / 1000) },
                                     "%.0fMB".format(file.bytes / 1_048_576.0),
                                 ).joinToString(" · ")
-                                Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    details,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
                             }
-                            TextButton(onClick = { scope.launch { downloads.delete(file) } }) { Text("삭제") }
+                            IconButton(onClick = { scope.launch { downloads.delete(file) } }) {
+                                Icon(Icons.Outlined.Delete, contentDescription = "삭제", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
@@ -127,9 +152,9 @@ fun LibraryScreen(
                 list == null -> {}
                 list.isEmpty() -> Message(if (which == ItemList.LATER) "저장한 영상이 없습니다." else "시청 기록이 없습니다.")
                 windowLayout().tablet -> LazyVerticalGrid(GridCells.Adaptive(260.dp), contentPadding = PaddingValues(8.dp)) {
-                    gridItems(list) { item -> VideoCard(item, onClick = { onItem(item) }) }
+                    gridItems(list) { item -> VideoCard(item, onClick = { onItem(item) }, showPlatform = true) }
                 }
-                else -> LazyColumn { items(list) { item -> VideoRow(item, onClick = { onItem(item) }) } }
+                else -> LazyColumn { items(list) { item -> VideoRow(item, onClick = { onItem(item) }, showPlatform = true) } }
             }
         }
     }

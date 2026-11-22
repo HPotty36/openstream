@@ -69,7 +69,7 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
         Section("콘텐츠")
         val showAgeRestricted by settings.showAgeRestricted.collectAsState()
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("연령 제한 콘텐츠 표시")
                 Note("로그인이 필요한 영상은 목록에 보여도 재생되지 않을 수 있습니다.")
             }
@@ -78,7 +78,7 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
 
         val sponsorBlock by settings.sponsorBlock.collectAsState()
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("스폰서 구간 건너뛰기")
                 Note("YouTube 영상에서 SponsorBlock에 등록된 광고 구간을 건너뜁니다. 어떤 영상인지 서버가 알 수 없게 영상 ID 해시의 앞부분만 보냅니다.")
             }
@@ -110,7 +110,7 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
         Note(
             when (leaveMode) {
                 LeaveMode.PIP -> "영상이 작은 창으로 줄어들어 다른 앱 위에서 계속 재생됩니다."
-                LeaveMode.AUDIO -> "화면을 끄거나 다른 앱으로 가도 소리가 계속 나옵니다. 알림의 정지 버튼으로 멈춥니다."
+                LeaveMode.AUDIO -> "화면을 끄거나 다른 앱으로 가도 소리가 계속 나옵니다. 알림을 펼쳐 정지를 누르면 멈춥니다."
                 LeaveMode.PAUSE -> "영상이 멈춥니다."
             },
         )
@@ -127,7 +127,7 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
             androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
         ) { granted -> setNotify(granted) }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("새 영상·방송 알림")
                 Note("구독한 채널을 30분마다 확인해서 방송이 시작되거나 새 영상이 올라오면 알립니다.")
             }
@@ -152,6 +152,7 @@ private fun ApiKey(settings: AppSettings) {
         onValueChange = { input = it },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
         label = { Text("Anthropic API 키") },
         placeholder = { Text("sk-ant-…") },
         visualTransformation = PasswordVisualTransformation(),
@@ -169,7 +170,8 @@ private fun ApiKey(settings: AppSettings) {
 
 @Composable
 private fun Section(title: String) {
-    Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+    // Grey, not the accent: the accent is kept for what can be pressed or is switched on.
+    Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable

@@ -186,6 +186,12 @@ class Downloads(private val context: Context, private val client: OkHttpClient, 
         found
     }
 
+    /** A still from the file, made by Android; null for sound-only files and on Android 9 and older. */
+    suspend fun thumbnail(file: SavedFile): android.graphics.Bitmap? = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || file.audioOnly) null
+        else runCatching { context.contentResolver.loadThumbnail(file.uri, android.util.Size(480, 270), null) }.getOrNull()
+    }
+
     suspend fun delete(file: SavedFile) {
         withContext(Dispatchers.IO) {
             runCatching {

@@ -30,7 +30,7 @@ fun windowLayout(): WindowLayout {
 
 /** A video as a tile, for the grids of the tablet layout. */
 @Composable
-fun VideoCard(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true) {
+fun VideoCard(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true, showPlatform: Boolean = false) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(8.dp)) {
         Thumbnail(item, Modifier.fillMaxWidth())
         Text(
@@ -40,7 +40,7 @@ fun VideoCard(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
-        val meta = listOfNotNull(item.channel.name.takeIf { showChannel && it.isNotEmpty() }, item.published()).joinToString(" · ")
+        val meta = item.meta(showChannel, showPlatform)
         if (meta.isNotEmpty()) {
             Text(
                 meta,
