@@ -38,7 +38,7 @@ private val THEME_LABELS = listOf(
 )
 
 @Composable
-fun SettingsScreen(settings: AppSettings, modifier: Modifier = Modifier) {
+fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Library, onImported: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -69,6 +69,10 @@ fun SettingsScreen(settings: AppSettings, modifier: Modifier = Modifier) {
             }
             Switch(showAgeRestricted, settings::setShowAgeRestricted)
         }
+
+        Spacer(Modifier.height(8.dp))
+        Section("구독과 백업")
+        DataSection(library, onImported)
     }
 }
 

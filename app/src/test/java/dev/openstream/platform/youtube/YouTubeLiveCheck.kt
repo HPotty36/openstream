@@ -49,5 +49,9 @@ class YouTubeLiveCheck {
         val live = youtube.channelItems(channel.id, ChannelTab.LIVE)
         println("LIVE channel '${channel.name}': videos=${videos.items.size} shorts=${shorts.items.size} live=${live.items.size}")
         assertTrue(videos.items.isNotEmpty())
+
+        val latest = youtube.latest(channel)
+        println("LIVE latest: ${latest.size}, shorts=${latest.count { it.kind == dev.openstream.platform.ItemKind.SHORT }}, first='${latest.firstOrNull()?.title}' at ${latest.firstOrNull()?.publishedAt}")
+        assertTrue(latest.isNotEmpty() && latest.all { it.publishedAt != null && it.thumbnailUrl != null })
     }
 }

@@ -21,7 +21,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import dev.openstream.library.youtubeChannelId
+import java.time.OffsetDateTime
 import org.jsoup.Jsoup
+import org.jsoup.parser.Parser
 import org.schabi.newpipe.extractor.Image
 import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.NewPipe
@@ -47,7 +50,7 @@ import org.schabi.newpipe.extractor.stream.VideoStream
 private typealias ExtractorPage = org.schabi.newpipe.extractor.Page
 
 /** YouTube through NewPipeExtractor. Items and channels are identified by their address. */
-class YouTubePlatform(client: OkHttpClient) : StreamingPlatform {
+class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
     override val id = PlatformId.YOUTUBE
 
     private val service get() = ServiceList.YouTube
@@ -111,6 +114,19 @@ class YouTubePlatform(client: OkHttpClient) : StreamingPlatform {
             }
             Page(mapped, token(next))
         }
+
+    /** From the channel's RSS feed: one small request, where the channel page takes several large ones. */
+    override suspend fun latest(channel: Channel): List<StreamItem> = withContext(Dispatchers.IO) {
+        val channelId = youtubeChannelId(channel.id)
+            ?: return@withContext channelItems(channel.id, ChannelTab.VIDEOS, null).items
+        val request = okhttp3.Request.Builder().url("https://www.youtube.com/feeds/videos.xml?channel_id=$channelId")
+            .header("User-Agent", USER_AGENT).build()
+        val xml = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("feed ${response.code}")
+            response.body.string()
+        }
+        parseFeed(xml, channel)
+    }
 
     override suspend fun playback(itemId: String): Playback = withContext(Dispatchers.IO) {
         val info = StreamInfo.getInfo(service, itemId)
@@ -204,6 +220,22 @@ class YouTubePlatform(client: OkHttpClient) : StreamingPlatform {
         repliesPage = token(replies),
     )
 }
+
+/** A channel's RSS feed as feed items. The feed has no durations; a short is told by its address. */
+fun parseFeed(xml: String, channel: Channel): List<StreamItem> =
+    Jsoup.parse(xml, "", Parser.xmlParser()).select("entry").mapNotNull { entry ->
+        val link = entry.selectFirst("link[rel=alternate]")?.attr("href")?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+        val videoId = entry.getElementsByTag("yt:videoId").first()?.text()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+        StreamItem(
+            platform = PlatformId.YOUTUBE,
+            id = "https://www.youtube.com/watch?v=$videoId",
+            kind = if ("/shorts/" in link) ItemKind.SHORT else ItemKind.VIDEO,
+            title = entry.selectFirst("title")?.text().orEmpty(),
+            channel = channel,
+            thumbnailUrl = entry.getElementsByTag("media:thumbnail").first()?.attr("url")?.takeIf { it.isNotEmpty() },
+            publishedAt = runCatching { OffsetDateTime.parse(entry.selectFirst("published")!!.text()).toInstant().toEpochMilli() }.getOrNull(),
+        )
+    }
 
 private fun List<Image>.best(): String? = maxByOrNull { it.height }?.url
 

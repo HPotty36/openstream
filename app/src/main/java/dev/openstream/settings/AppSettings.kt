@@ -48,4 +48,9 @@ class AppSettings(context: Context, private val secrets: SecretStore, prefsName:
     }
 
     fun apiKeyBlocking(): String? = apiKey
+
+    /** When the subscription feed was last refreshed, in epoch milliseconds; 0 when it never was. */
+    var lastFeedRefresh: Long
+        get() = prefs.getLong("last_feed_refresh", 0L)
+        set(value) = prefs.edit().putLong("last_feed_refresh", value).apply()
 }

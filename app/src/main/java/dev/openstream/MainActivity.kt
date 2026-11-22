@@ -39,7 +39,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.outlined.VideoLibrary
 import dev.openstream.channel.ChannelScreen
+import dev.openstream.feed.FeedScreen
+import dev.openstream.library.ItemList
+import dev.openstream.library.LibraryScreen
+import kotlinx.coroutines.launch
 import dev.openstream.platform.Channel
 import dev.openstream.platform.StreamItem
 import dev.openstream.search.SearchScreen
@@ -79,6 +84,7 @@ class MainActivity : ComponentActivity() {
 private enum class Tab(val label: String, val icon: ImageVector) {
     FEED("구독", Icons.Outlined.Subscriptions),
     SEARCH("검색", Icons.Outlined.Search),
+    LIBRARY("보관함", Icons.Outlined.VideoLibrary),
     SETTINGS("설정", Icons.Outlined.Settings),
 }
 
@@ -103,14 +109,20 @@ private fun Root(app: App) {
 
     val tabContent: @Composable (Modifier) -> Unit = { modifier ->
         when (tab) {
-            Tab.FEED -> Empty("구독한 채널이 없습니다", modifier)
+            Tab.FEED -> FeedScreen(app.library, app.feed, onItem = { stack.add(Screen.Watch(it)) }, modifier = modifier)
             Tab.SEARCH -> SearchScreen(
                 search,
                 onChannel = { stack.add(Screen.OfChannel(it)) },
                 onItem = { stack.add(Screen.Watch(it)) },
                 modifier = modifier,
             )
-            Tab.SETTINGS -> SettingsScreen(app.settings, modifier)
+            Tab.LIBRARY -> LibraryScreen(
+                app.library,
+                onChannel = { stack.add(Screen.OfChannel(it)) },
+                onItem = { stack.add(Screen.Watch(it)) },
+                modifier = modifier,
+            )
+            Tab.SETTINGS -> SettingsScreen(app.settings, app.library, onImported = app.feed::refresh, modifier = modifier)
         }
     }
 
@@ -151,7 +163,8 @@ private fun Root(app: App) {
                 Surface(Modifier.fillMaxSize()) {
                     when (screen) {
                         is Screen.OfChannel -> ChannelScreen(
-                            app.youtube, screen.channel,
+                            app.youtube, screen.channel, app.library,
+                            onSubscribed = app.feed::add,
                             onBack = { stack.removeAt(stack.lastIndex) },
                             onItem = { stack.add(Screen.Watch(it)) },
                         )
@@ -159,6 +172,10 @@ private fun Root(app: App) {
                             app.youtube, screen.item, app.settings, app.translator,
                             active = index == stack.lastIndex,
                             keys = app.playerKeys,
+                            library = app.library,
+                            onProgress = { item, position ->
+                                app.scope.launch { app.library.put(ItemList.HISTORY, listOf(item), position) }
+                            },
                             onChannel = { stack.add(Screen.OfChannel(it)) },
                         )
                     }

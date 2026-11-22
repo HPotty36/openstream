@@ -101,6 +101,9 @@ interface StreamingPlatform {
 
     suspend fun channelItems(channelId: String, tab: ChannelTab, page: String? = null): Page<StreamItem>
 
+    /** The channel's newest uploads in one cheap request; this is what the subscription feed is built from. */
+    suspend fun latest(channel: Channel): List<StreamItem>
+
     suspend fun playback(itemId: String): Playback
 
     /** Comments under an upload. Platforms without them return an empty page. */

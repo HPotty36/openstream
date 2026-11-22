@@ -20,8 +20,14 @@ import dev.openstream.ui.VideoCard
 import dev.openstream.ui.windowLayout
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
+import dev.openstream.library.Library
+import kotlinx.coroutines.launch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
@@ -52,7 +58,14 @@ private val TABS = listOf(
 )
 
 @Composable
-fun ChannelScreen(platform: StreamingPlatform, channel: Channel, onBack: () -> Unit, onItem: (StreamItem) -> Unit) {
+fun ChannelScreen(
+    platform: StreamingPlatform,
+    channel: Channel,
+    library: Library,
+    onSubscribed: (Channel) -> Unit,
+    onBack: () -> Unit,
+    onItem: (StreamItem) -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val lists = remember(channel.id) {
         TABS.associate { (tab, _) -> tab to Paged(scope) { platform.channelItems(channel.id, tab, it) } }
@@ -64,7 +77,20 @@ fun ChannelScreen(platform: StreamingPlatform, channel: Channel, onBack: () -> U
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로") }
             Avatar(channel.avatarUrl, 36.dp)
             Spacer(Modifier.width(12.dp))
-            Text(channel.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                channel.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(end = 12.dp),
+            )
+            val changes by library.changes.collectAsState()
+            val subscribed by produceState<Boolean?>(null, changes, channel.id) { value = library.isSubscribed(channel) }
+            when (subscribed) {
+                true -> OutlinedButton(onClick = { scope.launch { library.unsubscribe(channel) } }) { Text("구독 중") }
+                false -> Button(onClick = { scope.launch { library.subscribe(listOf(channel)); onSubscribed(channel) } }) { Text("구독") }
+                null -> {}
+            }
         }
         PrimaryTabRow(selectedTabIndex = TABS.indexOfFirst { it.first == selected }) {
             TABS.forEach { (tab, label) ->

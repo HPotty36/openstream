@@ -15,6 +15,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.rememberUpdatedState
 import dev.openstream.ui.windowLayout
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.mutableLongStateOf
+import dev.openstream.library.ItemList
+import dev.openstream.library.Library
+import dev.openstream.platform.ItemKind
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -124,10 +129,17 @@ fun WatchScreen(
     translator: Translator,
     active: Boolean,
     keys: Flow<Int>,
+    library: Library,
+    onProgress: (StreamItem, Long) -> Unit,
     onChannel: (Channel) -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Where the video was left the last time, to pick it up from there.
+    var resumeAt by remember { mutableLongStateOf(0L) }
+    var later by remember { mutableStateOf(false) }
     var playback by remember { mutableStateOf<Playback?>(null) }
+    LaunchedEffect(playback) { later = library.contains(ItemList.LATER, playback?.item ?: item) }
     var source by remember { mutableStateOf<Source?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -137,6 +149,7 @@ fun WatchScreen(
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true)).build()
             .apply { playWhenReady = true }
     }
+    val latestPlayback by rememberUpdatedState(playback)
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
             override fun onPlayerError(e: PlaybackException) {
@@ -145,6 +158,8 @@ fun WatchScreen(
         }
         player.addListener(listener)
         onDispose {
+            latestPlayback?.item?.takeIf { it.kind != ItemKind.LIVE && player.currentPosition > 0 }
+                ?.let { onProgress(it, player.currentPosition) }
             player.release()
             (context as? Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
@@ -160,6 +175,13 @@ fun WatchScreen(
                 error = "연령 제한 영상입니다. 설정에서 표시를 켜면 볼 수 있습니다."
                 return@LaunchedEffect
             }
+            if (loaded.item.kind != ItemKind.LIVE) {
+                val left = library.position(loaded.item)
+                val length = (loaded.item.durationSeconds ?: Long.MAX_VALUE / 1000) * 1000
+                // A video left in its last seconds starts over.
+                resumeAt = if (left < length - 10_000) left else 0
+            }
+            onProgress(loaded.item, resumeAt)
             playback = loaded
             source = loaded.sources.firstOrNull { (it.height ?: 0) in 1..1080 } ?: loaded.sources.firstOrNull()
             if (source == null) error = "재생할 수 있는 형식이 없습니다."
@@ -172,10 +194,23 @@ fun WatchScreen(
     LaunchedEffect(source, attempt) {
         val chosen = source ?: return@LaunchedEffect
         error = null
-        val position = player.currentPosition
+        val position = player.currentPosition.takeIf { it > 0 } ?: resumeAt
         player.setMediaSource(mediaSource(chosen))
         player.prepare()
         if (position > 0) player.seekTo(position)
+    }
+    LaunchedEffect(playback) {
+        val watched = playback?.item?.takeIf { it.kind != ItemKind.LIVE } ?: return@LaunchedEffect
+        while (true) {
+            delay(10_000)
+            if (player.isPlaying) onProgress(watched, player.currentPosition)
+        }
+    }
+    val toggleLater: () -> Unit = {
+        val target = playback?.item ?: item
+        val save = !later
+        later = save
+        scope.launch { if (save) library.put(ItemList.LATER, listOf(target)) else library.remove(ItemList.LATER, target) }
     }
 
     val layout = windowLayout()
@@ -242,14 +277,14 @@ fun WatchScreen(
                 Box(Modifier.fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
                     playerBox(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp).aspectRatio(16f / 9f))
                 }
-                Header(shown, playback, source, { source = it }, onChannel)
+                Header(shown, playback, source, { source = it }, onChannel, later, toggleLater)
             }
             Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
         }
         else -> Column(Modifier.fillMaxSize()) {
             playerBox(Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f))
             Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding()) {
-                Header(shown, playback, source, { source = it }, onChannel)
+                Header(shown, playback, source, { source = it }, onChannel, later, toggleLater)
                 HorizontalDivider()
             }
         }
@@ -355,7 +390,15 @@ private fun Comments(
 }
 
 @Composable
-private fun Header(item: StreamItem, playback: Playback?, source: Source?, onSource: (Source) -> Unit, onChannel: (Channel) -> Unit) {
+private fun Header(
+    item: StreamItem,
+    playback: Playback?,
+    source: Source?,
+    onSource: (Source) -> Unit,
+    onChannel: (Channel) -> Unit,
+    later: Boolean,
+    onLater: () -> Unit,
+) {
     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Text(item.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp))
         Row(Modifier.padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -365,6 +408,7 @@ private fun Header(item: StreamItem, playback: Playback?, source: Source?, onSou
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
+            TextButton(onClick = onLater) { Text(if (later) "저장됨" else "나중에 보기") }
             if (playback != null && source != null && playback.sources.size > 1) {
                 var open by remember { mutableStateOf(false) }
                 Box {
