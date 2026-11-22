@@ -40,16 +40,6 @@ fun VideoCard(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
-        val meta = item.meta(showChannel, showPlatform)
-        if (meta.isNotEmpty()) {
-            Text(
-                meta,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
+        MetaLine(item, showChannel, showPlatform, Modifier.padding(top = 2.dp))
     }
 }

@@ -84,6 +84,14 @@ class Library(context: Context, name: String? = "library.db") : SQLiteOpenHelper
         }
     }
 
+    /** For channels that came from an import file, which carries names but no pictures. */
+    suspend fun setAvatar(channel: Channel, avatarUrl: String) = write { db ->
+        db.update(
+            "subscriptions", ContentValues().apply { put("avatar", avatarUrl) },
+            "platform=? AND channel_id=?", arrayOf(channel.platform.id, channel.id),
+        )
+    }
+
     suspend fun unsubscribe(channel: Channel) = write { db ->
         val key = arrayOf(channel.platform.id, channel.id)
         db.delete("subscriptions", "platform=? AND channel_id=?", key)

@@ -149,7 +149,13 @@ private fun Root(app: App) {
 
     val tabContent: @Composable (Modifier) -> Unit = { modifier ->
         when (tab) {
-            Tab.FEED -> FeedScreen(app.library, app.feed, onItem = { stack.add(Screen.Watch(it)) }, modifier = modifier)
+            Tab.FEED -> FeedScreen(
+                app.library, app.feed,
+                onItem = { stack.add(Screen.Watch(it)) },
+                onChannel = { stack.add(Screen.OfChannel(it)) },
+                onSearch = { tab = Tab.SEARCH },
+                modifier = modifier,
+            )
             Tab.SEARCH -> SearchScreen(
                 search,
                 onChannel = { stack.add(Screen.OfChannel(it)) },

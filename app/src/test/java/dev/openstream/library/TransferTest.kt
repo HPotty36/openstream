@@ -20,6 +20,43 @@ class TransferTest {
         assertEquals(listOf("NASA", "Tube, You \"HQ\""), channels.map { it.name })
     }
 
+    private fun zip(vararg entries: Pair<String, ByteArray>): java.io.InputStream {
+        val out = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(out).use { zip ->
+            entries.forEach { (name, bytes) ->
+                zip.putNextEntry(java.util.zip.ZipEntry(name))
+                zip.write(bytes)
+                zip.closeEntry()
+            }
+        }
+        return out.toByteArray().inputStream()
+    }
+
+    @Test fun findsTheSubscriptionsInsideATakeoutZipWhateverTheFileIsCalled() {
+        val csv = "채널 ID,채널 URL,채널 제목\nUCLA_DiR1FfKNvjuUpBHmylQ,http://www.youtube.com/channel/UCLA_DiR1FfKNvjuUpBHmylQ,NASA\n"
+        val takeout = zip(
+            "Takeout/보관 파일 둘러보기.html" to "<html>".toByteArray(),
+            "Takeout/YouTube 및 YouTube Music/재생목록/재생목록.csv" to "재생목록 ID,제목\nPL123,나중에\n".toByteArray(),
+            "Takeout/YouTube 및 YouTube Music/구독정보/구독정보.csv" to csv.toByteArray(),
+        )
+        assertEquals(listOf(Channel(PlatformId.YOUTUBE, nasa, "NASA")), readImport(takeout) { emptyList() }.subscriptions)
+    }
+
+    @Test fun handsADatabaseInsideAZipToTheDatabaseReader() {
+        val export = zip("newpipe.db" to byteArrayOf(1, 2, 3), "preferences.json" to "{\"a\":1}".toByteArray())
+        val channel = Channel(PlatformId.YOUTUBE, nasa, "NASA")
+        assertEquals(listOf(channel), readImport(export) { bytes -> if (bytes.size == 3) listOf(channel) else emptyList() }.subscriptions)
+    }
+
+    @Test fun aZipWithoutSubscriptionsSaysSo() {
+        assertThrows(ImportException::class.java) { readImport(zip("notes.txt" to "hi".toByteArray())) { emptyList() } }
+    }
+
+    @Test fun aPlainFileStillReadsThroughTheSameDoor() {
+        val csv = "id,url,title\nUCLA_DiR1FfKNvjuUpBHmylQ,x,NASA\n"
+        assertEquals(listOf(nasa), readImport(csv.byteInputStream()) { emptyList() }.subscriptions.map { it.id })
+    }
+
     @Test fun readsNewPipeExportAndSkipsOtherServices() {
         val json = """{"app_version":"0.27","subscriptions":[
             {"service_id":0,"url":"$nasa","name":"NASA"},

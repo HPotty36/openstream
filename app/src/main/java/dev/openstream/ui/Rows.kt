@@ -83,12 +83,29 @@ fun SelectChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> 
     )
 }
 
-/** The line under a title: platform (in lists that mix platforms), channel, age. */
-fun StreamItem.meta(showChannel: Boolean, showPlatform: Boolean): String = listOfNotNull(
-    platform.label.takeIf { showPlatform },
-    channel.name.takeIf { showChannel && it.isNotEmpty() },
-    published(),
-).joinToString(" · ")
+/**
+ * The line under a title: platform (in lists that mix platforms), channel, age.
+ * When the line is too long the channel's name gives way; the age is always whole.
+ */
+@Composable
+fun MetaLine(item: StreamItem, showChannel: Boolean, showPlatform: Boolean, modifier: Modifier = Modifier) {
+    val lead = listOfNotNull(
+        item.platform.label.takeIf { showPlatform },
+        item.channel.name.takeIf { showChannel && it.isNotEmpty() },
+    ).joinToString(" · ")
+    val age = item.published()
+    if (lead.isEmpty() && age == null) return
+    val style = MaterialTheme.typography.bodySmall
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(modifier) {
+        if (lead.isNotEmpty()) {
+            Text(lead, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        }
+        if (age != null) {
+            Text(if (lead.isEmpty()) age else " · $age", style = style, color = color, maxLines = 1, softWrap = false)
+        }
+    }
+}
 
 /** The frame every thumbnail sits in: a thin edge keeps dark pictures from melting into the black background. */
 fun Modifier.thumbnailFrame(): Modifier = composed {
@@ -130,17 +147,7 @@ fun VideoRow(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true,
         Spacer(Modifier.width(12.dp))
         Column {
             Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            val meta = item.meta(showChannel, showPlatform)
-            if (meta.isNotEmpty()) {
-                Text(
-                    meta,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
+            MetaLine(item, showChannel, showPlatform, Modifier.padding(top = 4.dp))
         }
     }
 }

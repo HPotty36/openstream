@@ -46,7 +46,7 @@ private val LEAVE_LABELS = listOf(
 @Composable
 fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Library, onImported: () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
+        modifier.verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Section("테마")
@@ -57,6 +57,8 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
                     selected = mode == value,
                     onClick = { settings.setThemeMode(value) },
                     shape = SegmentedButtonDefaults.itemShape(index, THEME_LABELS.size),
+                    colors = choiceColors(),
+                    icon = {},
                 ) { Text(label) }
             }
         }
@@ -104,6 +106,8 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
                         }
                     },
                     shape = SegmentedButtonDefaults.itemShape(index, LEAVE_LABELS.size),
+                    colors = choiceColors(),
+                    icon = {},
                 ) { Text(label) }
             }
         }
@@ -167,6 +171,15 @@ private fun ApiKey(settings: AppSettings) {
         else "키가 없으면 번역 버튼이 보이지 않습니다. 키는 이 기기에 암호화해 저장합니다.",
     )
 }
+
+/** The chosen one of several is filled light, the same way as the chips elsewhere in the app. */
+@Composable
+private fun choiceColors() = SegmentedButtonDefaults.colors(
+    activeContainerColor = MaterialTheme.colorScheme.onSurface,
+    activeContentColor = MaterialTheme.colorScheme.surface,
+    activeBorderColor = MaterialTheme.colorScheme.outline,
+    inactiveBorderColor = MaterialTheme.colorScheme.outline,
+)
 
 @Composable
 private fun Section(title: String) {

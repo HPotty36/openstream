@@ -4,6 +4,10 @@ import dev.openstream.platform.Channel
 import dev.openstream.platform.ItemKind
 import dev.openstream.platform.PlatformId
 import dev.openstream.platform.StreamItem
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.util.zip.ZipInputStream
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -46,6 +50,58 @@ fun parseImport(text: String): Imported {
         throw ImportException("읽을 수 없는 파일입니다.")
     }
     return if (root["app"]?.jsonPrimitive?.contentOrNull == "openstream") parseBackup(root) else Imported(parseNewPipe(root))
+}
+
+// A subscriptions file is a few hundred kilobytes; anything far larger inside a zip is something else.
+private const val ENTRY_LIMIT = 32 shl 20
+
+/**
+ * Reads a picked file: any of the files [parseImport] knows, or a zip holding them. A Google Takeout
+ * zip names its subscriptions file in the account's language, and a NewPipe database export keeps
+ * them in an SQLite file, so every csv, json and db inside is tried and whatever yields channels counts.
+ * [readDatabase] turns such an SQLite file into channels; it needs Android, so the caller brings it.
+ */
+fun readImport(input: InputStream, readDatabase: (ByteArray) -> List<Channel>): Imported {
+    val stream = BufferedInputStream(input)
+    stream.mark(4)
+    val head = ByteArray(2)
+    val read = stream.read(head)
+    stream.reset()
+    val zipped = read == 2 && head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte()
+    if (!zipped) return parseImport(stream.readBytes().decodeToString())
+
+    val found = mutableListOf<Imported>()
+    ZipInputStream(stream).use { zip ->
+        while (true) {
+            val entry = zip.nextEntry ?: break
+            val kind = entry.name.substringAfterLast('.', "").lowercase()
+            if (entry.isDirectory || kind !in setOf("csv", "json", "db")) continue
+            val bytes = zip.readUpTo(ENTRY_LIMIT) ?: continue
+            val part = runCatching {
+                if (kind == "db") Imported(readDatabase(bytes)) else parseImport(bytes.decodeToString())
+            }.getOrNull() ?: continue
+            found += part
+        }
+    }
+    val channels = found.flatMap { it.subscriptions }.distinctBy { it.platform to it.id }
+    val later = found.flatMap { it.later }
+    val history = found.flatMap { it.history }
+    if (channels.isEmpty() && later.isEmpty() && history.isEmpty()) {
+        throw ImportException("zip 파일 안에서 구독 목록을 찾지 못했습니다.")
+    }
+    return Imported(channels, later, history)
+}
+
+/** The whole entry, or null when it is larger than [limit]. */
+private fun InputStream.readUpTo(limit: Int): ByteArray? {
+    val out = ByteArrayOutputStream()
+    val buffer = ByteArray(64 shl 10)
+    while (true) {
+        val n = read(buffer)
+        if (n < 0) return out.toByteArray()
+        if (out.size() + n > limit) return null
+        out.write(buffer, 0, n)
+    }
 }
 
 /** Three columns: channel id, channel address, channel title. The header's wording depends on the account's language. */
