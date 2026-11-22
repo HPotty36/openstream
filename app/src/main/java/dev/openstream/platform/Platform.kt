@@ -89,7 +89,16 @@ data class Comment(
  * One way to save an item: an MP4 picture stream with an AAC sound stream, which every phone can
  * put together and play. [videoUrl] is null for sound only.
  */
-data class DownloadOption(val label: String, val videoUrl: String?, val audioUrl: String)
+data class DownloadOption(
+    val label: String,
+    val videoUrl: String?,
+    val audioUrl: String?,
+    /** A file that is already complete and only has to be fetched; then the other two are unused. */
+    val fileUrl: String? = null,
+)
+
+/** Something the platform refuses or cannot do, worded for the person watching. */
+class PlatformException(message: String) : Exception(message)
 
 data class ChatMessage(val id: String, val author: String, val text: String)
 

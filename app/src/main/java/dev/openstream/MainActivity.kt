@@ -97,7 +97,7 @@ private sealed interface Screen {
 private fun Root(app: App) {
     val scope = rememberCoroutineScope()
     var tab by rememberSaveable { mutableStateOf(Tab.FEED) }
-    val search = remember { SearchState(app.youtube, scope) }
+    val search = remember { SearchState(app.platforms, scope) }
     // Screens opened on top of the tabs. Each stays alive under the next one, so going back
     // returns to the same list at the same place.
     val stack = remember { mutableStateListOf<Screen>() }
@@ -163,13 +163,13 @@ private fun Root(app: App) {
                 Surface(Modifier.fillMaxSize()) {
                     when (screen) {
                         is Screen.OfChannel -> ChannelScreen(
-                            app.youtube, screen.channel, app.library,
+                            app.platform(screen.channel.platform) ?: app.youtube, screen.channel, app.library,
                             onSubscribed = app.feed::add,
                             onBack = { stack.removeAt(stack.lastIndex) },
                             onItem = { stack.add(Screen.Watch(it)) },
                         )
                         is Screen.Watch -> WatchScreen(
-                            app.youtube, screen.item, app.settings, app.translator,
+                            app.platform(screen.item.platform) ?: app.youtube, screen.item, app.settings, app.translator,
                             active = index == stack.lastIndex,
                             keys = app.playerKeys,
                             library = app.library,

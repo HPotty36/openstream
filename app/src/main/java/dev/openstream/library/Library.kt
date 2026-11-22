@@ -118,6 +118,12 @@ class Library(context: Context, name: String? = "library.db") : SQLiteOpenHelper
         db.delete("items", "list=? AND platform=? AND item_id=?", arrayOf(list.id, item.platform.id, item.id))
     }
 
+    /** Replaces what the feed knows about live broadcasts, so one that has ended does not stay listed. */
+    suspend fun refreshFeed(items: List<StreamItem>) {
+        write { db -> db.delete("items", "list='feed' AND kind='LIVE'", null) }
+        put(ItemList.FEED, items)
+    }
+
     suspend fun clear(list: ItemList) = write { db -> db.delete("items", "list=?", arrayOf(list.id)) }
 
     suspend fun contains(list: ItemList, item: StreamItem): Boolean = read { db ->

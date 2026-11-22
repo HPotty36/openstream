@@ -284,14 +284,17 @@ fun WatchScreen(
                 }
                 Header(shown, playback, source, { source = it }, onChannel, later, toggleLater, downloadOptions) { onDownload(shown, it) }
             }
-            Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
+            if (shown.kind == ItemKind.LIVE) Chat(platform, shown, Modifier.weight(1f).fillMaxHeight()) {}
+            else Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
         }
         else -> Column(Modifier.fillMaxSize()) {
             playerBox(Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f))
-            Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding()) {
+            val header: @Composable () -> Unit = {
                 Header(shown, playback, source, { source = it }, onChannel, later, toggleLater, downloadOptions) { onDownload(shown, it) }
                 HorizontalDivider()
             }
+            if (shown.kind == ItemKind.LIVE) Chat(platform, shown, Modifier.fillMaxSize().navigationBarsPadding(), header)
+            else Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), header)
         }
     }
 }

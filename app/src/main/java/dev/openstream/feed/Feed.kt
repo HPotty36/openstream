@@ -85,7 +85,7 @@ class FeedRefresher(
                         }
                     }.awaitAll().flatten()
                 }
-                library.put(ItemList.FEED, items)
+                library.refreshFeed(items)
                 failed = failures.get()
                 settings.lastFeedRefresh = System.currentTimeMillis()
             } finally {

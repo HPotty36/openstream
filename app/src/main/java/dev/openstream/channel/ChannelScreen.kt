@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.openstream.platform.Channel
 import dev.openstream.platform.ChannelTab
+import dev.openstream.platform.PlatformId
 import dev.openstream.platform.StreamItem
 import dev.openstream.platform.StreamingPlatform
 import dev.openstream.ui.Avatar
@@ -51,7 +52,7 @@ import dev.openstream.ui.Paged
 import dev.openstream.ui.PagedFooter
 import dev.openstream.ui.VideoRow
 
-private val TABS = listOf(
+private val ALL_TABS = listOf(
     ChannelTab.VIDEOS to "동영상",
     ChannelTab.SHORTS to "쇼츠",
     ChannelTab.LIVE to "라이브",
@@ -67,6 +68,8 @@ fun ChannelScreen(
     onItem: (StreamItem) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    // Only YouTube has shorts.
+    val TABS = remember(platform) { ALL_TABS.filter { it.first != ChannelTab.SHORTS || platform.id == PlatformId.YOUTUBE } }
     val lists = remember(channel.id) {
         TABS.associate { (tab, _) -> tab to Paged(scope) { platform.channelItems(channel.id, tab, it) } }
     }

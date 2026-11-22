@@ -55,11 +55,17 @@ class Downloads(private val context: Context, private val client: OkHttpClient, 
             val joined = File(dir, "$id.mp4")
             try {
                 val name = item.title.replace(Regex("[\\\\/:*?\"<>|\\n\\r]"), " ").trim().take(120).ifEmpty { "video" }
-                if (option.videoUrl == null) {
-                    fetch(option.audioUrl, audio) { task.progress = it }
+                val sound = option.audioUrl
+                if (option.fileUrl != null) {
+                    fetch(option.fileUrl, joined) { task.progress = it }
+                    publish(joined, "$name.mp4", "video/mp4")
+                } else if (sound == null) {
+                    throw IllegalStateException("nothing to fetch")
+                } else if (option.videoUrl == null) {
+                    fetch(sound, audio) { task.progress = it }
                     publish(audio, "$name.m4a", "audio/mp4")
                 } else {
-                    fetch(option.audioUrl, audio) { task.progress = it * 0.1f }
+                    fetch(sound, audio) { task.progress = it * 0.1f }
                     fetch(option.videoUrl, video) { task.progress = 0.1f + it * 0.85f }
                     join(video, audio, joined)
                     publish(joined, "$name.mp4", "video/mp4")

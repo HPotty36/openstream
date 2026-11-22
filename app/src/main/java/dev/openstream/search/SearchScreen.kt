@@ -2,6 +2,9 @@ package dev.openstream.search
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -42,14 +45,24 @@ import dev.openstream.ui.VideoRow
 import kotlinx.coroutines.CoroutineScope
 
 /** Lives above the screen, so the results are still there after coming back from a video. */
-class SearchState(private val platform: StreamingPlatform, private val scope: CoroutineScope) {
+class SearchState(val platforms: List<StreamingPlatform>, private val scope: CoroutineScope) {
     var query by mutableStateOf("")
+    var platform by mutableStateOf(platforms.first()); private set
     var results by mutableStateOf<Paged<SearchResult>?>(null); private set
 
     fun submit() {
         val text = query.trim()
         if (text.isEmpty()) return
-        results = Paged(scope) { platform.search(text, it) }
+        val where = platform
+        results = Paged(scope) { where.search(text, it) }
+    }
+
+    /** Switching platforms repeats the search there. */
+    fun choose(next: StreamingPlatform) {
+        if (next === platform) return
+        platform = next
+        results = null
+        submit()
     }
 
     fun clear() {
@@ -68,7 +81,7 @@ fun SearchScreen(state: SearchState, onChannel: (Channel) -> Unit, onItem: (Stre
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).widthIn(max = 640.dp).fillMaxWidth(),
             singleLine = true,
             shape = CircleShape,
-            placeholder = { Text("YouTube 검색") },
+            placeholder = { Text("${state.platform.id.label} 검색") },
             leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
             trailingIcon = {
                 if (state.query.isNotEmpty()) {
@@ -78,6 +91,15 @@ fun SearchScreen(state: SearchState, onChannel: (Channel) -> Unit, onItem: (Stre
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { keyboard?.hide(); state.submit() }),
         )
+        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            state.platforms.forEach { platform ->
+                FilterChip(
+                    selected = state.platform === platform,
+                    onClick = { state.choose(platform) },
+                    label = { Text(platform.id.label) },
+                )
+            }
+        }
         val results = state.results ?: return@Column
         if (windowLayout().tablet) {
             LazyVerticalGrid(GridCells.Adaptive(260.dp), contentPadding = PaddingValues(horizontal = 8.dp)) {

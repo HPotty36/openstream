@@ -24,8 +24,13 @@ class App : Application() {
     val http: OkHttpClient by lazy { OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).build() }
     val youtube: StreamingPlatform by lazy { YouTubePlatform(http) }
 
+    val chzzk: StreamingPlatform by lazy { dev.openstream.platform.chzzk.ChzzkPlatform(http) }
+
+    /** The platforms that are built, in the order the search offers them. */
+    val platforms: List<StreamingPlatform> by lazy { listOf(youtube, chzzk) }
+
     /** Null for the platforms that are not built yet. */
-    fun platform(id: PlatformId): StreamingPlatform? = if (id == PlatformId.YOUTUBE) youtube else null
+    fun platform(id: PlatformId): StreamingPlatform? = platforms.firstOrNull { it.id == id }
 
     val downloads: dev.openstream.download.Downloads by lazy { dev.openstream.download.Downloads(this, http, scope) }
 
