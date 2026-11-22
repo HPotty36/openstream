@@ -40,6 +40,19 @@ class App : Application() {
 
     val sponsorBlock: dev.openstream.sponsor.SponsorBlock by lazy { dev.openstream.sponsor.SponsorBlock(http) }
 
+    val updater: dev.openstream.update.Updater by lazy {
+        dev.openstream.update.Updater(
+            installedVersion = BuildConfig.VERSION_NAME,
+            // A debug build is a different app id; the release APK would install beside it, not over it.
+            enabled = !BuildConfig.DEBUG,
+            dir = java.io.File(cacheDir, "update"),
+            install = { dev.openstream.update.installApk(this, it) },
+            lastCheck = { settings.lastUpdateCheck },
+            saveLastCheck = { settings.lastUpdateCheck = it },
+            http = http,
+        )
+    }
+
     override fun onCreate() {
         super.onCreate()
         // Keeps the background check registered across updates and restarts; it does nothing when the switch is off.

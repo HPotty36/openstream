@@ -443,7 +443,7 @@ private fun Comments(
     }
 }
 
-/** One action under a video: an icon and a word, in a quiet outline so the row does not shout. */
+/** One action under a video: an icon and a word in a thin outline. */
 @Composable
 private fun Action(icon: ImageVector, label: String, onClick: () -> Unit) {
     OutlinedButton(

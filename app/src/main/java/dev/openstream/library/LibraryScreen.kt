@@ -87,7 +87,7 @@ fun LibraryScreen(
             // A finished download is in the list of files, so only the unfinished ones are shown as tasks.
             val running = downloads.tasks.filter { !it.finished }
             if (running.isEmpty() && saved?.isEmpty() == true) {
-                Message("받은 영상이 없습니다. 영상 화면의 다운로드로 받으면 휴대폰의 Download/OpenStream 폴더에 저장됩니다.")
+                Message("받은 영상이 없습니다.")
             } else {
                 LazyColumn {
                     items(running) { task ->

@@ -44,7 +44,15 @@ private val LEAVE_LABELS = listOf(
 )
 
 @Composable
-fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Library, onImported: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    settings: AppSettings,
+    library: dev.openstream.library.Library,
+    updater: dev.openstream.update.Updater,
+    /** Outlives the screen, so an update keeps downloading after the settings are left. */
+    appScope: kotlinx.coroutines.CoroutineScope,
+    onImported: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier.verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -73,7 +81,7 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("연령 제한 콘텐츠 표시")
-                Note("로그인이 필요한 영상은 목록에 보여도 재생되지 않을 수 있습니다.")
+                Note("로그인이 필요한 영상은 재생되지 않습니다.")
             }
             Switch(showAgeRestricted, settings::setShowAgeRestricted)
         }
@@ -82,7 +90,7 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("스폰서 구간 건너뛰기")
-                Note("YouTube 영상에서 SponsorBlock에 등록된 광고 구간을 건너뜁니다. 어떤 영상인지 서버가 알 수 없게 영상 ID 해시의 앞부분만 보냅니다.")
+                Note("YouTube 영상에서 SponsorBlock에 등록된 구간을 건너뜁니다.")
             }
             Switch(sponsorBlock, settings::setSponsorBlock)
         }
@@ -111,13 +119,8 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
                 ) { Text(label) }
             }
         }
-        Note(
-            when (leaveMode) {
-                LeaveMode.PIP -> "영상이 작은 창으로 줄어들어 다른 앱 위에서 계속 재생됩니다."
-                LeaveMode.AUDIO -> "화면을 끄거나 다른 앱으로 가도 소리가 계속 나옵니다. 알림을 펼쳐 정지를 누르면 멈춥니다."
-                LeaveMode.PAUSE -> "영상이 멈춥니다."
-            },
-        )
+        // The other two choices say what they do in their own name.
+        if (leaveMode == LeaveMode.AUDIO) Note("알림을 펼쳐 정지를 누르면 멈춥니다.")
 
         Spacer(Modifier.height(8.dp))
         Section("알림")
@@ -133,7 +136,7 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(end = 16.dp)) {
                 Text("새 영상·방송 알림")
-                Note("구독한 채널을 30분마다 확인해서 방송이 시작되거나 새 영상이 올라오면 알립니다.")
+                Note("구독한 채널을 30분마다 확인합니다.")
             }
             Switch(notify, { on ->
                 if (on && android.os.Build.VERSION.SDK_INT >= 33) askPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -144,6 +147,10 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
         Spacer(Modifier.height(8.dp))
         Section("구독과 백업")
         DataSection(library, onImported)
+
+        Spacer(Modifier.height(8.dp))
+        Section("업데이트")
+        dev.openstream.update.UpdateSection(updater, dev.openstream.BuildConfig.VERSION_NAME, appScope)
     }
 }
 
@@ -167,8 +174,8 @@ private fun ApiKey(settings: AppSettings) {
         if (hint != null) TextButton(onClick = { settings.setApiKey(null) }) { Text("삭제") }
     }
     Note(
-        if (hint != null) "저장된 키: …$hint. 번역할 댓글과 채팅은 Anthropic으로 전송됩니다."
-        else "키가 없으면 번역 버튼이 보이지 않습니다. 키는 이 기기에 암호화해 저장합니다.",
+        if (hint != null) "저장된 키 …$hint. 번역할 댓글과 채팅은 Anthropic으로 보냅니다."
+        else "키를 저장하면 댓글과 채팅에 번역 버튼이 생깁니다.",
     )
 }
 

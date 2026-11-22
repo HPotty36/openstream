@@ -34,7 +34,7 @@ private val Light = lightColorScheme(
     errorContainer = Color(0xFFF9DEDC), onErrorContainer = Color(0xFF410E0B),
 )
 
-// Dark is pitch black: on OLED the chrome disappears and only the video and the accent carry light.
+// Dark is pure black, with the surfaces one step above it for menus and cards.
 private val Dark = darkColorScheme(
     primary = Color(0xFFFF6B5E), onPrimary = Color(0xFF000000),
     primaryContainer = Color(0xFF3A1512), onPrimaryContainer = Color(0xFFFFDAD5),

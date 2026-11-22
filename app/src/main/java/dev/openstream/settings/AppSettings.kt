@@ -76,6 +76,11 @@ class AppSettings(context: Context, private val secrets: SecretStore, prefsName:
 
     fun apiKeyBlocking(): String? = apiKey
 
+    /** When the app last asked GitHub for a newer release, in epoch milliseconds; 0 when it never did. */
+    var lastUpdateCheck: Long
+        get() = prefs.getLong("last_update_check", 0L)
+        set(value) = prefs.edit().putLong("last_update_check", value).apply()
+
     /** When the subscription feed was last refreshed, in epoch milliseconds; 0 when it never was. */
     var lastFeedRefresh: Long
         get() = prefs.getLong("last_feed_refresh", 0L)

@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as App
+        if (savedInstanceState == null) app.scope.launch { app.updater.checkIfDue(System.currentTimeMillis()) }
         setContent {
             val mode by app.settings.themeMode.collectAsState()
             AppTheme(mode) { Root(app) }
@@ -169,7 +170,7 @@ private fun Root(app: App) {
                 onLocal = { stack.add(Screen.Local(it)) },
                 modifier = modifier,
             )
-            Tab.SETTINGS -> SettingsScreen(app.settings, app.library, onImported = app.feed::refresh, modifier = modifier)
+            Tab.SETTINGS -> SettingsScreen(app.settings, app.library, app.updater, app.scope, onImported = app.feed::refresh, modifier = modifier)
         }
     }
 
@@ -227,7 +228,7 @@ private fun Root(app: App) {
                             },
                             onDownload = { item, option ->
                                 app.downloads.start(item, option)
-                                android.widget.Toast.makeText(app, "다운로드를 시작했습니다. 보관함에서 진행 상황을 볼 수 있습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(app, "다운로드를 시작했습니다.", android.widget.Toast.LENGTH_SHORT).show()
                             },
                             skipSegments = { item ->
                                 val videoId = dev.openstream.sponsor.youtubeVideoId(item.id)
@@ -252,9 +253,3 @@ private fun Root(app: App) {
     }
 }
 
-@Composable
-private fun Empty(text: String, modifier: Modifier) {
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}

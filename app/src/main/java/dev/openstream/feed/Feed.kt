@@ -300,15 +300,13 @@ private fun Welcome(library: Library, onImported: () -> Unit, onSearch: () -> Un
         Spacer(Modifier.height(12.dp))
         Text("OpenStream", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(28.dp))
-        Text("구독한 채널의 새 영상만 모읍니다", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(8.dp))
         Text(
-            "YouTube·치지직·Twitch 채널을 검색해 구독하세요. 추천과 인기 순위는 없습니다.",
+            "구독한 채널의 새 영상이 여기에 나옵니다.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(20.dp))
         Button(onClick = onSearch, modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth()) {
             Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
@@ -329,7 +327,7 @@ private fun Welcome(library: Library, onImported: () -> Unit, onSearch: () -> Un
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            importer.message ?: "takeout.google.com에서 받은 zip을 그대로 고르면 됩니다.",
+            importer.message ?: "Google 테이크아웃에서 받은 zip 파일을 고르세요.",
             style = MaterialTheme.typography.bodySmall,
             color = if (importer.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
