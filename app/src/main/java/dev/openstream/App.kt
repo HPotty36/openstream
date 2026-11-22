@@ -27,6 +27,8 @@ class App : Application() {
     /** Null for the platforms that are not built yet. */
     fun platform(id: PlatformId): StreamingPlatform? = if (id == PlatformId.YOUTUBE) youtube else null
 
+    val downloads: dev.openstream.download.Downloads by lazy { dev.openstream.download.Downloads(this, http, scope) }
+
     val feed: FeedRefresher by lazy { FeedRefresher(library, ::platform, settings, scope) }
 
     /** Key codes of player shortcuts, from the activity that sees the keys to the video that acts on them. */

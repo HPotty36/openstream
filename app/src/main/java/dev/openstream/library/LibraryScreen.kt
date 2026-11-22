@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,11 +39,11 @@ import dev.openstream.ui.VideoRow
 import dev.openstream.ui.windowLayout
 import kotlinx.coroutines.launch
 
-private enum class Section(val label: String) { CHANNELS("구독 채널"), LATER("나중에 볼 영상"), HISTORY("시청 기록") }
+private enum class Section(val label: String) { CHANNELS("구독 채널"), LATER("나중에 볼 영상"), HISTORY("시청 기록"), DOWNLOADS("다운로드") }
 
 /** What is kept on the device in place of an account: the subscriptions, the saved videos and the history. */
 @Composable
-fun LibraryScreen(library: Library, onChannel: (Channel) -> Unit, onItem: (StreamItem) -> Unit, modifier: Modifier = Modifier) {
+fun LibraryScreen(library: Library, downloads: dev.openstream.download.Downloads, onChannel: (Channel) -> Unit, onItem: (StreamItem) -> Unit, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     var section by rememberSaveable { mutableStateOf(Section.CHANNELS) }
     val changes by library.changes.collectAsState()
@@ -60,7 +61,28 @@ fun LibraryScreen(library: Library, onChannel: (Channel) -> Unit, onItem: (Strea
                 TextButton(onClick = { scope.launch { library.clear(ItemList.HISTORY) } }) { Text("기록 지우기") }
             }
         }
-        if (section == Section.CHANNELS) {
+        if (section == Section.DOWNLOADS) {
+            if (downloads.tasks.isEmpty()) {
+                Message("받은 영상은 휴대폰의 Download/OpenStream 폴더에 저장됩니다.")
+            } else {
+                LazyColumn {
+                    items(downloads.tasks) { task ->
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                            Text(task.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                            val status = task.error ?: if (task.finished) "Download/OpenStream 폴더에 저장됨" else "${(task.progress * 100).toInt()}%"
+                            Text(
+                                "${task.label} · $status",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (task.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (!task.finished && task.error == null) {
+                                LinearProgressIndicator(progress = { task.progress }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (section == Section.CHANNELS) {
             val channels by produceState<List<Channel>?>(null, changes) { value = library.subscriptions() }
             val list = channels
             when {

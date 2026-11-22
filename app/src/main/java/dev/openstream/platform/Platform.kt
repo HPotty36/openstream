@@ -85,6 +85,12 @@ data class Comment(
     val repliesPage: String? = null,
 )
 
+/**
+ * One way to save an item: an MP4 picture stream with an AAC sound stream, which every phone can
+ * put together and play. [videoUrl] is null for sound only.
+ */
+data class DownloadOption(val label: String, val videoUrl: String?, val audioUrl: String)
+
 data class ChatMessage(val id: String, val author: String, val text: String)
 
 /**
@@ -105,6 +111,9 @@ interface StreamingPlatform {
     suspend fun latest(channel: Channel): List<StreamItem>
 
     suspend fun playback(itemId: String): Playback
+
+    /** What can be saved to a file, best first; the last entry is sound only. Empty when nothing can. */
+    suspend fun downloads(itemId: String): List<DownloadOption>
 
     /** Comments under an upload. Platforms without them return an empty page. */
     suspend fun comments(itemId: String, page: String? = null): Page<Comment>

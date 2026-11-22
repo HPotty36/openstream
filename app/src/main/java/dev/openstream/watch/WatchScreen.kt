@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import dev.openstream.library.ItemList
 import dev.openstream.library.Library
 import dev.openstream.platform.ItemKind
+import dev.openstream.platform.DownloadOption
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -131,6 +132,7 @@ fun WatchScreen(
     keys: Flow<Int>,
     library: Library,
     onProgress: (StreamItem, Long) -> Unit,
+    onDownload: (StreamItem, DownloadOption) -> Unit,
     onChannel: (Channel) -> Unit,
 ) {
     val context = LocalContext.current
@@ -269,6 +271,9 @@ fun WatchScreen(
     }
 
     val shown = playback?.item ?: item
+    // A live broadcast has no file to save.
+    val downloadOptions: (suspend () -> List<DownloadOption>)? =
+        if (shown.kind == ItemKind.LIVE) null else ({ platform.downloads(shown.id) })
     when {
         fullscreen -> playerBox(Modifier.fillMaxSize())
         // Wide window: the video and its description on the left, the comments in their own column.
@@ -277,14 +282,14 @@ fun WatchScreen(
                 Box(Modifier.fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
                     playerBox(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp).aspectRatio(16f / 9f))
                 }
-                Header(shown, playback, source, { source = it }, onChannel, later, toggleLater)
+                Header(shown, playback, source, { source = it }, onChannel, later, toggleLater, downloadOptions) { onDownload(shown, it) }
             }
             Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
         }
         else -> Column(Modifier.fillMaxSize()) {
             playerBox(Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f))
             Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding()) {
-                Header(shown, playback, source, { source = it }, onChannel, later, toggleLater)
+                Header(shown, playback, source, { source = it }, onChannel, later, toggleLater, downloadOptions) { onDownload(shown, it) }
                 HorizontalDivider()
             }
         }
@@ -398,6 +403,8 @@ private fun Header(
     onChannel: (Channel) -> Unit,
     later: Boolean,
     onLater: () -> Unit,
+    downloadOptions: (suspend () -> List<DownloadOption>)?,
+    onDownload: (DownloadOption) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Text(item.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp))
@@ -409,6 +416,39 @@ private fun Header(
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = onLater) { Text(if (later) "저장됨" else "나중에 보기") }
+            if (downloadOptions != null) {
+                val scope = rememberCoroutineScope()
+                var open by remember { mutableStateOf(false) }
+                var options by remember { mutableStateOf<List<DownloadOption>?>(null) }
+                var failed by remember { mutableStateOf(false) }
+                Box {
+                    TextButton(onClick = {
+                        open = true
+                        if (options == null) scope.launch {
+                            failed = false
+                            options = try {
+                                downloadOptions()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                failed = true
+                                null
+                            }
+                        }
+                    }) { Text("다운로드") }
+                    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                        val list = options
+                        when {
+                            failed -> DropdownMenuItem(text = { Text("불러오지 못했습니다") }, onClick = { open = false })
+                            list == null -> DropdownMenuItem(text = { Text("불러오는 중") }, onClick = {}, enabled = false)
+                            list.isEmpty() -> DropdownMenuItem(text = { Text("저장할 수 있는 형식이 없습니다") }, onClick = { open = false })
+                            else -> list.forEach { option ->
+                                DropdownMenuItem(text = { Text(option.label) }, onClick = { open = false; onDownload(option) })
+                            }
+                        }
+                    }
+                }
+            }
             if (playback != null && source != null && playback.sources.size > 1) {
                 var open by remember { mutableStateOf(false) }
                 Box {

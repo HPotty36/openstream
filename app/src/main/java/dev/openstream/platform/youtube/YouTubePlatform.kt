@@ -25,6 +25,8 @@ import dev.openstream.library.youtubeChannelId
 import java.time.OffsetDateTime
 import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
+import dev.openstream.platform.DownloadOption
+import org.schabi.newpipe.extractor.MediaFormat
 import org.schabi.newpipe.extractor.Image
 import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.NewPipe
@@ -148,6 +150,20 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
             ageRestricted = info.ageLimit >= 18,
         )
         Playback(item, info.description.plain(), sources(info, live))
+    }
+
+    override suspend fun downloads(itemId: String): List<DownloadOption> = withContext(Dispatchers.IO) {
+        val info = StreamInfo.getInfo(service, itemId)
+        val audio = info.audioStreams.filter { it.playable() && it.format == MediaFormat.M4A }
+            .sortedWith(compareBy<AudioStream> { it.audioTrackType == null || it.audioTrackType == AudioTrackType.ORIGINAL }
+                .thenBy { it.averageBitrate })
+            .lastOrNull() ?: return@withContext emptyList()
+        // H.264 in MP4 only: it goes up to 1080p, and the phone can join it with the sound without re-encoding.
+        val videos = info.videoOnlyStreams
+            .filter { it.playable() && it.format == MediaFormat.MPEG_4 && it.codec?.startsWith("avc1") == true }
+            .sortedByDescending { it.height }.distinctBy { it.height }
+        videos.map { DownloadOption("${it.height}p", it.content, audio.content) } +
+            DownloadOption("오디오만", null, audio.content)
     }
 
     private fun sources(info: StreamInfo, live: Boolean): List<Source> {

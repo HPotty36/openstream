@@ -117,7 +117,7 @@ private fun Root(app: App) {
                 modifier = modifier,
             )
             Tab.LIBRARY -> LibraryScreen(
-                app.library,
+                app.library, app.downloads,
                 onChannel = { stack.add(Screen.OfChannel(it)) },
                 onItem = { stack.add(Screen.Watch(it)) },
                 modifier = modifier,
@@ -175,6 +175,10 @@ private fun Root(app: App) {
                             library = app.library,
                             onProgress = { item, position ->
                                 app.scope.launch { app.library.put(ItemList.HISTORY, listOf(item), position) }
+                            },
+                            onDownload = { item, option ->
+                                app.downloads.start(item, option)
+                                android.widget.Toast.makeText(app, "다운로드를 시작했습니다. 보관함에서 진행 상황을 볼 수 있습니다.", android.widget.Toast.LENGTH_SHORT).show()
                             },
                             onChannel = { stack.add(Screen.OfChannel(it)) },
                         )
