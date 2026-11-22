@@ -284,7 +284,7 @@ fun WatchScreen(
                 }
                 Header(shown, playback, source, { source = it }, onChannel, later, toggleLater, downloadOptions) { onDownload(shown, it) }
             }
-            if (shown.kind == ItemKind.LIVE) Chat(platform, shown, Modifier.weight(1f).fillMaxHeight()) {}
+            if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
             else Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
         }
         else -> Column(Modifier.fillMaxSize()) {
@@ -293,7 +293,7 @@ fun WatchScreen(
                 Header(shown, playback, source, { source = it }, onChannel, later, toggleLater, downloadOptions) { onDownload(shown, it) }
                 HorizontalDivider()
             }
-            if (shown.kind == ItemKind.LIVE) Chat(platform, shown, Modifier.fillMaxSize().navigationBarsPadding(), header)
+            if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), header)
             else Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), header)
         }
     }

@@ -26,10 +26,12 @@ class App : Application() {
 
     val chzzk: StreamingPlatform by lazy { dev.openstream.platform.chzzk.ChzzkPlatform(http) }
 
-    /** The platforms that are built, in the order the search offers them. */
-    val platforms: List<StreamingPlatform> by lazy { listOf(youtube, chzzk) }
+    val twitch: StreamingPlatform by lazy { dev.openstream.platform.twitch.TwitchPlatform(http) }
 
-    /** Null for the platforms that are not built yet. */
+    /** In the order the search offers them. */
+    val platforms: List<StreamingPlatform> by lazy { listOf(youtube, chzzk, twitch) }
+
+    /** Null for a platform this build does not know. */
     fun platform(id: PlatformId): StreamingPlatform? = platforms.firstOrNull { it.id == id }
 
     val downloads: dev.openstream.download.Downloads by lazy { dev.openstream.download.Downloads(this, http, scope) }
