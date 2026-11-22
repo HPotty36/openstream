@@ -21,6 +21,7 @@ fun platformOfUrl(url: String): PlatformId? {
     }
 }
 
+/** [id] is whatever the platform needs to find the channel again; for YouTube it is the channel's address. */
 data class Channel(
     val platform: PlatformId,
     val id: String,
@@ -41,6 +42,8 @@ data class StreamItem(
     val durationSeconds: Long? = null,
     /** Epoch milliseconds; null when the platform only says something like "3 days ago". */
     val publishedAt: Long? = null,
+    /** The platform's own wording of the date, such as "3일 전". */
+    val publishedText: String? = null,
     val ageRestricted: Boolean = false,
 )
 
@@ -54,14 +57,18 @@ sealed interface SearchResult {
 
 enum class ChannelTab { VIDEOS, SHORTS, LIVE }
 
+enum class SourceType { PROGRESSIVE, HLS, DASH }
+
 /** A playable source. [audioUrl] is set when video and sound arrive as two streams. */
 data class Source(
     val url: String,
+    val type: SourceType,
     val height: Int? = null,
-    val isHls: Boolean = false,
+    val fps: Int? = null,
     val audioUrl: String? = null,
 )
 
+/** [sources] are ordered best first. */
 data class Playback(val item: StreamItem, val description: String, val sources: List<Source>)
 
 data class Comment(
@@ -69,7 +76,9 @@ data class Comment(
     val author: String,
     val text: String,
     val authorAvatarUrl: String? = null,
-    val likeCount: Long? = null,
+    val publishedText: String? = null,
+    val likeCount: Int? = null,
+    val pinned: Boolean = false,
     val replyCount: Int = 0,
     /** Goes into [StreamingPlatform.replies]; null when there are none to load. */
     val repliesPage: String? = null,

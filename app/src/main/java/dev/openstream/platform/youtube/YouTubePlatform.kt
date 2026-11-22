@@ -1,0 +1,213 @@
+package dev.openstream.platform.youtube
+
+import dev.openstream.platform.Channel
+import dev.openstream.platform.ChannelTab
+import dev.openstream.platform.ChatMessage
+import dev.openstream.platform.Comment
+import dev.openstream.platform.ItemKind
+import dev.openstream.platform.Page
+import dev.openstream.platform.PlatformId
+import dev.openstream.platform.Playback
+import dev.openstream.platform.SearchResult
+import dev.openstream.platform.Source
+import dev.openstream.platform.SourceType
+import dev.openstream.platform.StreamItem
+import dev.openstream.platform.StreamingPlatform
+import java.io.IOException
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import org.jsoup.Jsoup
+import org.schabi.newpipe.extractor.Image
+import org.schabi.newpipe.extractor.InfoItem
+import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.ServiceList
+import org.schabi.newpipe.extractor.channel.ChannelInfo
+import org.schabi.newpipe.extractor.channel.ChannelInfoItem
+import org.schabi.newpipe.extractor.channel.tabs.ChannelTabInfo
+import org.schabi.newpipe.extractor.channel.tabs.ChannelTabs
+import org.schabi.newpipe.extractor.comments.CommentsInfo
+import org.schabi.newpipe.extractor.comments.CommentsInfoItem
+import org.schabi.newpipe.extractor.localization.ContentCountry
+import org.schabi.newpipe.extractor.localization.Localization
+import org.schabi.newpipe.extractor.search.SearchInfo
+import org.schabi.newpipe.extractor.stream.AudioStream
+import org.schabi.newpipe.extractor.stream.AudioTrackType
+import org.schabi.newpipe.extractor.stream.DeliveryMethod
+import org.schabi.newpipe.extractor.stream.Description
+import org.schabi.newpipe.extractor.stream.StreamInfo
+import org.schabi.newpipe.extractor.stream.StreamInfoItem
+import org.schabi.newpipe.extractor.stream.StreamType
+import org.schabi.newpipe.extractor.stream.VideoStream
+
+private typealias ExtractorPage = org.schabi.newpipe.extractor.Page
+
+/** YouTube through NewPipeExtractor. Items and channels are identified by their address. */
+class YouTubePlatform(client: OkHttpClient) : StreamingPlatform {
+    override val id = PlatformId.YOUTUBE
+
+    private val service get() = ServiceList.YouTube
+    /** The extractor's page objects, kept here so the rest of the app only passes a short token around. */
+    private val pages = ConcurrentHashMap<String, ExtractorPage>()
+    private val channels = ConcurrentHashMap<String, ChannelInfo>()
+
+    init {
+        NewPipe.init(OkHttpDownloader(client), Localization("ko", "KR"), ContentCountry("KR"))
+    }
+
+    private fun token(page: ExtractorPage?): String? {
+        if (!ExtractorPage.isValid(page)) return null
+        return UUID.randomUUID().toString().also { pages[it] = page!! }
+    }
+
+    private fun page(token: String): ExtractorPage = pages[token] ?: throw IOException("page expired")
+
+    override suspend fun search(query: String, page: String?): Page<SearchResult> = withContext(Dispatchers.IO) {
+        val handler = service.searchQHFactory.fromQuery(query, listOf("all"), "")
+        val (items, next) = if (page == null) {
+            SearchInfo.getInfo(service, handler).let { it.relatedItems to it.nextPage }
+        } else {
+            SearchInfo.getMoreItems(service, handler, page(page)).let { it.items to it.nextPage }
+        }
+        Page(items.mapNotNull(::searchResult), token(next))
+    }
+
+    private fun searchResult(item: InfoItem): SearchResult? = when (item) {
+        is ChannelInfoItem -> SearchResult.OfChannel(Channel(id, item.url, item.name, item.thumbnails.best()))
+        is StreamInfoItem -> item.toItem().takeIf { it.kind != ItemKind.SHORT }?.let(SearchResult::OfItem)
+        else -> null
+    }
+
+    private fun channelInfo(channelId: String): ChannelInfo =
+        channels.getOrPut(channelId) { ChannelInfo.getInfo(service, channelId) }
+
+    override suspend fun channel(channelId: String): Channel = withContext(Dispatchers.IO) {
+        val info = channelInfo(channelId)
+        Channel(id, info.url, info.name, info.avatars.best())
+    }
+
+    override suspend fun channelItems(channelId: String, tab: ChannelTab, page: String?): Page<StreamItem> =
+        withContext(Dispatchers.IO) {
+            val filter = when (tab) {
+                ChannelTab.VIDEOS -> ChannelTabs.VIDEOS
+                ChannelTab.SHORTS -> ChannelTabs.SHORTS
+                ChannelTab.LIVE -> ChannelTabs.LIVESTREAMS
+            }
+            val handler = channelInfo(channelId).tabs.firstOrNull { filter in it.contentFilters }
+                ?: return@withContext Page(emptyList())
+            val (items, next) = if (page == null) {
+                ChannelTabInfo.getInfo(service, handler).let { it.relatedItems to it.nextPage }
+            } else {
+                ChannelTabInfo.getMoreItems(service, handler, page(page)).let { it.items to it.nextPage }
+            }
+            val mapped = items.filterIsInstance<StreamInfoItem>().map {
+                val item = it.toItem()
+                // The shorts tab does not always flag its own items.
+                if (tab == ChannelTab.SHORTS) item.copy(kind = ItemKind.SHORT) else item
+            }
+            Page(mapped, token(next))
+        }
+
+    override suspend fun playback(itemId: String): Playback = withContext(Dispatchers.IO) {
+        val info = StreamInfo.getInfo(service, itemId)
+        val live = info.streamType == StreamType.LIVE_STREAM || info.streamType == StreamType.AUDIO_LIVE_STREAM
+        val item = StreamItem(
+            platform = id,
+            id = info.url,
+            kind = when {
+                live -> ItemKind.LIVE
+                info.isShortFormContent -> ItemKind.SHORT
+                else -> ItemKind.VIDEO
+            },
+            title = info.name,
+            channel = Channel(id, info.uploaderUrl.orEmpty(), info.uploaderName.orEmpty(), info.uploaderAvatars.best()),
+            thumbnailUrl = info.thumbnails.best(),
+            durationSeconds = info.duration.takeIf { it > 0 },
+            publishedAt = info.uploadDate?.instant?.toEpochMilli(),
+            publishedText = info.textualUploadDate,
+            ageRestricted = info.ageLimit >= 18,
+        )
+        Playback(item, info.description.plain(), sources(info, live))
+    }
+
+    private fun sources(info: StreamInfo, live: Boolean): List<Source> {
+        val manifests = buildList {
+            info.hlsUrl?.takeIf { it.isNotEmpty() }?.let { add(Source(it, SourceType.HLS)) }
+            info.dashMpdUrl?.takeIf { it.isNotEmpty() }?.let { add(Source(it, SourceType.DASH)) }
+        }
+        if (live) return manifests
+
+        val audio = info.audioStreams.filter { it.playable() }
+            .sortedWith(compareBy<AudioStream> { it.audioTrackType == null || it.audioTrackType == AudioTrackType.ORIGINAL }
+                .thenBy { it.averageBitrate })
+            .lastOrNull()
+        val separate = if (audio == null) emptyList() else info.videoOnlyStreams.filter { it.playable() }
+            .map { Source(it.content, SourceType.PROGRESSIVE, it.height, it.fps, audioUrl = audio.content) }
+        val muxed = info.videoStreams.filter { it.playable() }
+            .map { Source(it.content, SourceType.PROGRESSIVE, it.height, it.fps) }
+        // One entry per height: the separate stream when there is one, since those go higher and look better.
+        val byHeight = (separate + muxed).filter { it.height != null }.distinctBy { it.height }
+            .sortedByDescending { it.height }
+        return byHeight + manifests
+    }
+
+    private fun VideoStream.playable() = isUrl && deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP
+    private fun AudioStream.playable() = isUrl && deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP
+
+    override suspend fun comments(itemId: String, page: String?): Page<Comment> = withContext(Dispatchers.IO) {
+        if (page == null) {
+            val info = CommentsInfo.getInfo(service, itemId)
+            Page(info.relatedItems.map { it.toComment() }, token(info.nextPage))
+        } else {
+            replies(itemId, page)
+        }
+    }
+
+    override suspend fun replies(itemId: String, page: String): Page<Comment> = withContext(Dispatchers.IO) {
+        val more = CommentsInfo.getMoreItems(service, itemId, page(page))
+        Page(more.items.map { it.toComment() }, token(more.nextPage))
+    }
+
+    // The extractor does not read live chat yet; it comes with the live stage of the plan.
+    override fun liveChat(itemId: String): Flow<ChatMessage> = emptyFlow()
+
+    private fun StreamInfoItem.toItem() = StreamItem(
+        platform = id,
+        id = url,
+        kind = when {
+            isShortFormContent -> ItemKind.SHORT
+            streamType == StreamType.LIVE_STREAM || streamType == StreamType.AUDIO_LIVE_STREAM -> ItemKind.LIVE
+            else -> ItemKind.VIDEO
+        },
+        title = name,
+        channel = Channel(id, uploaderUrl.orEmpty(), uploaderName.orEmpty(), uploaderAvatars.best()),
+        thumbnailUrl = thumbnails.best(),
+        durationSeconds = duration.takeIf { it > 0 },
+        publishedAt = uploadDate?.instant?.toEpochMilli(),
+        publishedText = textualUploadDate,
+    )
+
+    private fun CommentsInfoItem.toComment() = Comment(
+        id = commentId.orEmpty(),
+        author = uploaderName.orEmpty(),
+        text = commentText.plain(),
+        authorAvatarUrl = uploaderAvatars.best(),
+        publishedText = textualUploadDate,
+        likeCount = likeCount.takeIf { it >= 0 },
+        pinned = isPinned,
+        replyCount = replyCount.coerceAtLeast(0),
+        repliesPage = token(replies),
+    )
+}
+
+private fun List<Image>.best(): String? = maxByOrNull { it.height }?.url
+
+private fun Description.plain(): String {
+    val text = content.orEmpty()
+    if (type != Description.Type.HTML) return text
+    return Jsoup.parse(text.replace(Regex("<br\\s*/?>"), "\n")).wholeText().trim()
+}
