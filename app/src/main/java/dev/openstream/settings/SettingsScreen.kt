@@ -37,6 +37,12 @@ private val THEME_LABELS = listOf(
     ThemeMode.DARK to "다크",
 )
 
+private val LEAVE_LABELS = listOf(
+    LeaveMode.PIP to "작은 창",
+    LeaveMode.AUDIO to "소리만",
+    LeaveMode.PAUSE to "멈춤",
+)
+
 @Composable
 fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Library, onImported: () -> Unit, modifier: Modifier = Modifier) {
     Column(
@@ -78,6 +84,36 @@ fun SettingsScreen(settings: AppSettings, library: dev.openstream.library.Librar
             }
             Switch(sponsorBlock, settings::setSponsorBlock)
         }
+
+        Spacer(Modifier.height(8.dp))
+        Section("재생")
+        val leaveMode by settings.leaveMode.collectAsState()
+        // The sound-only mode shows a notification with a stop button, so it asks for the permission once.
+        val askForPlayback = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+        ) {}
+        Text("재생 중에 앱을 벗어나면")
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            LEAVE_LABELS.forEachIndexed { index, (value, label) ->
+                SegmentedButton(
+                    selected = leaveMode == value,
+                    onClick = {
+                        settings.setLeaveMode(value)
+                        if (value == LeaveMode.AUDIO && android.os.Build.VERSION.SDK_INT >= 33) {
+                            askForPlayback.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    },
+                    shape = SegmentedButtonDefaults.itemShape(index, LEAVE_LABELS.size),
+                ) { Text(label) }
+            }
+        }
+        Note(
+            when (leaveMode) {
+                LeaveMode.PIP -> "영상이 작은 창으로 줄어들어 다른 앱 위에서 계속 재생됩니다."
+                LeaveMode.AUDIO -> "화면을 끄거나 다른 앱으로 가도 소리가 계속 나옵니다. 알림의 정지 버튼으로 멈춥니다."
+                LeaveMode.PAUSE -> "영상이 멈춥니다."
+            },
+        )
 
         Spacer(Modifier.height(8.dp))
         Section("알림")

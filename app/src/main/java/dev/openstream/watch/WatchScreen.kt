@@ -131,7 +131,9 @@ fun WatchScreen(
     settings: AppSettings,
     translator: Translator,
     active: Boolean,
+    pip: Boolean,
     keys: Flow<Int>,
+    onPlaying: (Boolean) -> Unit,
     library: Library,
     onProgress: (StreamItem, Long) -> Unit,
     onDownload: (StreamItem, DownloadOption) -> Unit,
@@ -149,11 +151,7 @@ fun WatchScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
 
-    val player = remember {
-        // Fallback: when a phone's hardware decoder gives up on a stream, try its next decoder instead of failing.
-        ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true)).build()
-            .apply { playWhenReady = true }
-    }
+    val player = remember { buildPlayer(context) }
     val latestPlayback by rememberUpdatedState(playback)
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
@@ -169,8 +167,6 @@ fun WatchScreen(
             (context as? Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.pause() }
-    LaunchedEffect(active) { if (!active) player.pause() }
 
     LaunchedEffect(item.id, attempt) {
         error = null
@@ -244,20 +240,12 @@ fun WatchScreen(
     var fullscreenChosen by remember { mutableStateOf(false) }
     val fullscreen = if (layout.tablet) fullscreenChosen else landscape
     val tabletNow by rememberUpdatedState(layout.tablet)
-    HideSystemBars(fullscreen && active)
+    HideSystemBars(fullscreen && active && !pip)
     BackHandler(active && layout.tablet && fullscreenChosen) { fullscreenChosen = false }
 
-    // Keyboard shortcuts, for a tablet with a keyboard or a phone on a monitor.
-    LaunchedEffect(active) {
-        if (!active) return@LaunchedEffect
-        keys.collect { code ->
-            when (code) {
-                KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_K -> if (player.isPlaying) player.pause() else player.play()
-                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_J -> player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0))
-                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_L -> player.seekTo(player.currentPosition + 10_000)
-                KeyEvent.KEYCODE_F -> if (tabletNow) fullscreenChosen = !fullscreenChosen
-            }
-        }
+    val leaveMode by settings.leaveMode.collectAsState()
+    PlayerHousekeeping(player, (playback?.item ?: item).title, active, leaveMode, keys, onPlaying) {
+        if (tabletNow) fullscreenChosen = !fullscreenChosen
     }
 
     val playerBox: @Composable (Modifier) -> Unit = { modifier ->
@@ -275,7 +263,11 @@ fun WatchScreen(
                         }
                     }
                 },
-                update = { it.setFullscreenButtonState(fullscreen) },
+                update = {
+                    it.setFullscreenButtonState(fullscreen)
+                    // The small window has its own buttons; the player's would only cover the picture.
+                    it.useController = !pip
+                },
                 modifier = Modifier.fillMaxSize(),
             )
             val message = error
@@ -298,7 +290,7 @@ fun WatchScreen(
     val downloadOptions: (suspend () -> List<DownloadOption>)? =
         if (shown.kind == ItemKind.LIVE) null else ({ platform.downloads(shown.id) })
     when {
-        fullscreen -> playerBox(Modifier.fillMaxSize())
+        pip || fullscreen -> playerBox(Modifier.fillMaxSize())
         // Wide window: the video and its description on the left, the comments in their own column.
         layout.wide -> Row(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Column(Modifier.weight(1.7f).fillMaxHeight().verticalScroll(rememberScrollState())) {

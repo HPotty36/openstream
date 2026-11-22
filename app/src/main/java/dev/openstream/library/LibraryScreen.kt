@@ -31,6 +31,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import dev.openstream.download.SavedFile
+import dev.openstream.ui.formatDuration
 import dev.openstream.platform.Channel
 import dev.openstream.platform.StreamItem
 import dev.openstream.ui.ChannelRow
@@ -43,7 +46,14 @@ private enum class Section(val label: String) { CHANNELS("구독 채널"), LATER
 
 /** What is kept on the device in place of an account: the subscriptions, the saved videos and the history. */
 @Composable
-fun LibraryScreen(library: Library, downloads: dev.openstream.download.Downloads, onChannel: (Channel) -> Unit, onItem: (StreamItem) -> Unit, modifier: Modifier = Modifier) {
+fun LibraryScreen(
+    library: Library,
+    downloads: dev.openstream.download.Downloads,
+    onChannel: (Channel) -> Unit,
+    onItem: (StreamItem) -> Unit,
+    onLocal: (SavedFile) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val scope = rememberCoroutineScope()
     var section by rememberSaveable { mutableStateOf(Section.CHANNELS) }
     val changes by library.changes.collectAsState()
@@ -62,22 +72,41 @@ fun LibraryScreen(library: Library, downloads: dev.openstream.download.Downloads
             }
         }
         if (section == Section.DOWNLOADS) {
-            if (downloads.tasks.isEmpty()) {
-                Message("받은 영상은 휴대폰의 Download/OpenStream 폴더에 저장됩니다.")
+            val saved by produceState<List<SavedFile>?>(null, downloads.version) { value = downloads.saved() }
+            // A finished download is in the list of files, so only the unfinished ones are shown as tasks.
+            val running = downloads.tasks.filter { !it.finished }
+            if (running.isEmpty() && saved?.isEmpty() == true) {
+                Message("받은 영상이 없습니다. 영상 화면의 다운로드로 받으면 휴대폰의 Download/OpenStream 폴더에 저장됩니다.")
             } else {
                 LazyColumn {
-                    items(downloads.tasks) { task ->
+                    items(running) { task ->
                         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
                             Text(task.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
-                            val status = task.error ?: if (task.finished) "Download/OpenStream 폴더에 저장됨" else "${(task.progress * 100).toInt()}%"
                             Text(
-                                "${task.label} · $status",
+                                "${task.label} · ${task.error ?: "${(task.progress * 100).toInt()}%"}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (task.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            if (!task.finished && task.error == null) {
+                            if (task.error == null) {
                                 LinearProgressIndicator(progress = { task.progress }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                             }
+                        }
+                    }
+                    items(saved.orEmpty()) { file ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { onLocal(file) }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(file.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                                val details = listOfNotNull(
+                                    if (file.audioOnly) "소리만" else "영상",
+                                    file.durationMs?.let { formatDuration(it / 1000) },
+                                    "%.0fMB".format(file.bytes / 1_048_576.0),
+                                ).joinToString(" · ")
+                                Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            TextButton(onClick = { scope.launch { downloads.delete(file) } }) { Text("삭제") }
                         }
                     }
                 }

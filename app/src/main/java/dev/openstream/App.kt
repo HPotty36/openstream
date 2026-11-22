@@ -51,6 +51,11 @@ class App : Application() {
     /** True while a video is the screen in front; only then do the shortcut keys belong to the player. */
     @Volatile var watching = false
 
+    /** True while the video in front is playing; leaving the app then can shrink it into a small window. */
+    val playing = kotlinx.coroutines.flow.MutableStateFlow(false)
+    /** True while the app is shown as that small window; the screen then draws nothing but the video. */
+    val inPip = kotlinx.coroutines.flow.MutableStateFlow(false)
+
     // A batch of comments takes longer than a page load, so translation waits longer for its answer.
     val translator: Translator by lazy {
         Translator(http.newBuilder().readTimeout(90, TimeUnit.SECONDS).build(), settings::apiKeyBlocking)

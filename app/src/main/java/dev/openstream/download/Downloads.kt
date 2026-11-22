@@ -1,6 +1,10 @@
 package dev.openstream.download
 
+import android.content.ContentUris
 import android.content.ContentValues
+import android.net.Uri
+import androidx.compose.runtime.mutableIntStateOf
+import kotlinx.coroutines.withContext
 import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
@@ -33,6 +37,9 @@ class DownloadTask(val title: String, val label: String) {
     var finished by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
 }
+
+/** A file already saved on the phone. */
+data class SavedFile(val uri: Uri, val title: String, val bytes: Long, val durationMs: Long?, val audioOnly: Boolean)
 
 // The servers slow a connection down when it asks for a whole file at once, so it is fetched in pieces.
 private const val PIECE = 8L shl 20
@@ -142,7 +149,62 @@ class Downloads(private val context: Context, private val client: OkHttpClient, 
         }
     }
 
+    /** Goes up whenever a file is saved or deleted, so the list of saved files knows to read again. */
+    var version by mutableIntStateOf(0)
+        private set
+
+    /**
+     * The files this app saved, newest first. Android shows an app only the files it made itself,
+     * so files saved before a reinstall are still in the folder but not in this list.
+     */
+    suspend fun saved(): List<SavedFile> = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return@withContext context.getExternalFilesDir("download")?.listFiles().orEmpty()
+                .sortedByDescending { it.lastModified() }
+                .map { SavedFile(Uri.fromFile(it), it.nameWithoutExtension, it.length(), null, it.extension == "m4a") }
+        }
+        val columns = arrayOf(
+            MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.SIZE,
+            MediaStore.MediaColumns.DURATION, MediaStore.MediaColumns.MIME_TYPE,
+        )
+        val found = mutableListOf<SavedFile>()
+        context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI, columns,
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?", arrayOf("Download/OpenStream%"),
+            "${MediaStore.MediaColumns.DATE_ADDED} DESC",
+        )?.use { rows ->
+            while (rows.moveToNext()) {
+                found += SavedFile(
+                    uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, rows.getLong(0)),
+                    title = rows.getString(1).orEmpty().substringBeforeLast('.'),
+                    bytes = rows.getLong(2),
+                    durationMs = if (rows.isNull(3)) null else rows.getLong(3).takeIf { it > 0 },
+                    audioOnly = rows.getString(4).orEmpty().startsWith("audio"),
+                )
+            }
+        }
+        found
+    }
+
+    suspend fun delete(file: SavedFile) {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                if (file.uri.scheme == "file") File(file.uri.path!!).delete()
+                else context.contentResolver.delete(file.uri, null, null)
+            }
+        }
+        version++
+    }
+
     private fun publish(file: File, name: String, mime: String) {
+        try {
+            store(file, name, mime)
+        } finally {
+            version++
+        }
+    }
+
+    private fun store(file: File, name: String, mime: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             // Before Android 10 the shared Download folder needs a permission; the app's own folder does not.
             file.copyTo(File(context.getExternalFilesDir("download"), name), overwrite = true)

@@ -18,7 +18,9 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import dev.openstream.library.youtubeChannelId
@@ -204,8 +206,11 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
         Page(more.items.map { it.toComment() }, token(more.nextPage))
     }
 
-    // The extractor does not read live chat yet; it comes with the live stage of the plan.
-    override fun liveChat(itemId: String): Flow<ChatMessage> = emptyFlow()
+    /** The extractor finds where the chat starts; reading it from there is [youtubeLiveChat]'s work. */
+    override fun liveChat(itemId: String): Flow<ChatMessage> = flow {
+        val start = StreamInfo.getInfo(service, itemId).liveChatContinuation?.takeIf { it.isNotEmpty() } ?: return@flow
+        emitAll(youtubeLiveChat(client, start))
+    }.flowOn(Dispatchers.IO)
 
     private fun StreamInfoItem.toItem() = StreamItem(
         platform = id,

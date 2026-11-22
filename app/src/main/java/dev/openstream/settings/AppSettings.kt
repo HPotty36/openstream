@@ -9,6 +9,9 @@ const val TRANSLATION_MODEL = "claude-haiku-5-5"
 
 enum class ThemeMode(val id: String) { SYSTEM("system"), LIGHT("light"), DARK("dark") }
 
+/** What a playing video does when the app is left: shrink into a small window, go on as sound only, or stop. */
+enum class LeaveMode(val id: String) { PIP("pip"), AUDIO("audio"), PAUSE("pause") }
+
 fun themeModeById(id: String?): ThemeMode = ThemeMode.entries.firstOrNull { it.id == id } ?: ThemeMode.SYSTEM
 
 /** The theme, the Anthropic API key (stored encrypted) and the content switches. */
@@ -37,6 +40,14 @@ class AppSettings(context: Context, private val secrets: SecretStore, prefsName:
     fun setSponsorBlock(on: Boolean) {
         prefs.edit().putBoolean("sponsor_block", on).apply()
         _sponsorBlock.value = on
+    }
+
+    private val _leaveMode = MutableStateFlow(LeaveMode.entries.firstOrNull { it.id == prefs.getString("leave_mode", null) } ?: LeaveMode.PIP)
+    val leaveMode: StateFlow<LeaveMode> = _leaveMode
+
+    fun setLeaveMode(mode: LeaveMode) {
+        prefs.edit().putString("leave_mode", mode.id).apply()
+        _leaveMode.value = mode
     }
 
     private val _notifyUpdates = MutableStateFlow(prefs.getBoolean("notify_updates", false))

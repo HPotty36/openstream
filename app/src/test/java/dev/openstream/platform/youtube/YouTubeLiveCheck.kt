@@ -2,6 +2,8 @@ package dev.openstream.platform.youtube
 
 import dev.openstream.platform.ChannelTab
 import dev.openstream.platform.SearchResult
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -19,6 +21,21 @@ class YouTubeLiveCheck {
     private fun status(url: String): Int = client.newCall(
         Request.Builder().url(url).header("Range", "bytes=0-2047").header("User-Agent", USER_AGENT).build(),
     ).execute().use { it.code }
+
+    @Test fun liveChatMoves() = runBlocking {
+        val youtube = YouTubePlatform(client)
+        val lives = youtube.search("live news").items.filterIsInstance<SearchResult.OfItem>().map { it.item }
+            .filter { it.kind == dev.openstream.platform.ItemKind.LIVE }
+        println("LIVE yt chat: ${lives.size} live results")
+        // Not every broadcast has chat turned on, so the first one that answers counts.
+        val got = lives.take(5).firstNotNullOfOrNull { live ->
+            runCatching {
+                kotlinx.coroutines.withTimeoutOrNull(20_000) { youtube.liveChat(live.id).take(2).toList() }
+            }.getOrNull()?.takeIf { it.size == 2 }
+        }
+        println("LIVE yt chat messages: ${got?.map { "${it.author}: ${it.text.take(24)}" }}".replace(Regex("[^\\x20-\\x7E]"), "?"))
+        assertTrue(got != null)
+    }
 
     @Test fun searchChannelPlaybackComments() = runBlocking {
         val youtube = YouTubePlatform(client)

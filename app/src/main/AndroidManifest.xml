@@ -3,6 +3,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Asked for only when the notifications switch in the settings is turned on. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- For the "sound only" way of leaving the app while a video plays. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- allowBackup is off so the stored API key never leaves the device in a backup. -->
     <application
         android:name=".App"
@@ -16,11 +20,16 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden|keyboard|uiMode|screenLayout|smallestScreenSize"
+            android:supportsPictureInPicture="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".watch.PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 </manifest>

@@ -1,6 +1,15 @@
 package dev.openstream
 
+import android.app.PictureInPictureParams
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
+import android.util.Rational
+import androidx.lifecycle.lifecycleScope
+import dev.openstream.download.SavedFile
+import dev.openstream.settings.LeaveMode
+import dev.openstream.watch.LocalScreen
+import kotlinx.coroutines.flow.combine
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -68,6 +77,34 @@ class MainActivity : ComponentActivity() {
             val mode by app.settings.themeMode.collectAsState()
             AppTheme(mode) { Root(app) }
         }
+        // From Android 12 the system itself shrinks the app into the small window when it is left,
+        // if told beforehand that it may; so the permission follows the playing state.
+        lifecycleScope.launch {
+            combine(app.playing, app.settings.leaveMode) { playing, mode -> playing && mode == LeaveMode.PIP }
+                .collect { setPictureInPictureParams(pipParams(it)) }
+        }
+    }
+
+    private fun pipParams(auto: Boolean): PictureInPictureParams =
+        PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).apply {
+            if (Build.VERSION.SDK_INT >= 31) {
+                setAutoEnterEnabled(auto)
+                setSeamlessResizeEnabled(true)
+            }
+        }.build()
+
+    // Before Android 12 the app has to shrink itself at the moment it is left.
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val app = application as App
+        if (Build.VERSION.SDK_INT < 31 && app.playing.value && app.settings.leaveMode.value == LeaveMode.PIP) {
+            runCatching { enterPictureInPictureMode(pipParams(false)) }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        (application as App).inPip.value = isInPictureInPictureMode
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -91,6 +128,7 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 private sealed interface Screen {
     data class OfChannel(val channel: Channel) : Screen
     data class Watch(val item: StreamItem) : Screen
+    data class Local(val file: SavedFile) : Screen
 }
 
 @Composable
@@ -102,7 +140,9 @@ private fun Root(app: App) {
     // returns to the same list at the same place.
     val stack = remember { mutableStateListOf<Screen>() }
     BackHandler(stack.isNotEmpty()) { stack.removeAt(stack.lastIndex) }
-    SideEffect { app.watching = stack.lastOrNull() is Screen.Watch }
+    SideEffect { app.watching = stack.lastOrNull().let { it is Screen.Watch || it is Screen.Local } }
+    val pip by app.inPip.collectAsState()
+    val leaveMode by app.settings.leaveMode.collectAsState()
     // Leaving the search field focused under a video would send the shortcut keys into it.
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     androidx.compose.runtime.LaunchedEffect(stack.size) { if (stack.isNotEmpty()) focus.clearFocus(force = true) }
@@ -120,6 +160,7 @@ private fun Root(app: App) {
                 app.library, app.downloads,
                 onChannel = { stack.add(Screen.OfChannel(it)) },
                 onItem = { stack.add(Screen.Watch(it)) },
+                onLocal = { stack.add(Screen.Local(it)) },
                 modifier = modifier,
             )
             Tab.SETTINGS -> SettingsScreen(app.settings, app.library, onImported = app.feed::refresh, modifier = modifier)
@@ -171,7 +212,9 @@ private fun Root(app: App) {
                         is Screen.Watch -> WatchScreen(
                             app.platform(screen.item.platform) ?: app.youtube, screen.item, app.settings, app.translator,
                             active = index == stack.lastIndex,
+                            pip = pip,
                             keys = app.playerKeys,
+                            onPlaying = { app.playing.value = it },
                             library = app.library,
                             onProgress = { item, position ->
                                 app.scope.launch { app.library.put(ItemList.HISTORY, listOf(item), position) }
@@ -186,6 +229,14 @@ private fun Root(app: App) {
                                 if (videoId == null) emptyList() else app.sponsorBlock.segments(videoId)
                             },
                             onChannel = { stack.add(Screen.OfChannel(it)) },
+                        )
+                        is Screen.Local -> LocalScreen(
+                            screen.file.uri, screen.file.title,
+                            active = index == stack.lastIndex,
+                            pip = pip,
+                            leaveMode = leaveMode,
+                            keys = app.playerKeys,
+                            onPlaying = { app.playing.value = it },
                         )
                     }
                 }
