@@ -1,13 +1,17 @@
 package dev.openstream
 
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -16,10 +20,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -39,7 +46,13 @@ import dev.openstream.search.SearchScreen
 import dev.openstream.search.SearchState
 import dev.openstream.settings.SettingsScreen
 import dev.openstream.ui.AppTheme
+import dev.openstream.ui.windowLayout
 import dev.openstream.watch.WatchScreen
+
+private val PLAYER_KEYS = setOf(
+    KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_K, KeyEvent.KEYCODE_F,
+    KeyEvent.KEYCODE_J, KeyEvent.KEYCODE_L, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,6 +63,16 @@ class MainActivity : ComponentActivity() {
             val mode by app.settings.themeMode.collectAsState()
             AppTheme(mode) { Root(app) }
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val app = application as App
+        val plain = !event.isCtrlPressed && !event.isAltPressed && !event.isMetaPressed
+        if (app.watching && plain && event.keyCode in PLAYER_KEYS) {
+            if (event.action == KeyEvent.ACTION_DOWN) app.playerKeys.tryEmit(event.keyCode)
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 }
 
@@ -73,13 +96,31 @@ private fun Root(app: App) {
     // returns to the same list at the same place.
     val stack = remember { mutableStateListOf<Screen>() }
     BackHandler(stack.isNotEmpty()) { stack.removeAt(stack.lastIndex) }
+    SideEffect { app.watching = stack.lastOrNull() is Screen.Watch }
+    // Leaving the search field focused under a video would send the shortcut keys into it.
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    androidx.compose.runtime.LaunchedEffect(stack.size) { if (stack.isNotEmpty()) focus.clearFocus(force = true) }
 
-    Box(Modifier.fillMaxSize()) {
-        Scaffold(
-            bottomBar = {
-                NavigationBar {
+    val tabContent: @Composable (Modifier) -> Unit = { modifier ->
+        when (tab) {
+            Tab.FEED -> Empty("구독한 채널이 없습니다", modifier)
+            Tab.SEARCH -> SearchScreen(
+                search,
+                onChannel = { stack.add(Screen.OfChannel(it)) },
+                onItem = { stack.add(Screen.Watch(it)) },
+                modifier = modifier,
+            )
+            Tab.SETTINGS -> SettingsScreen(app.settings, modifier)
+        }
+    }
+
+    Surface(Modifier.fillMaxSize()) {
+        if (windowLayout().tablet) {
+            // Tablet, desktop window or external monitor: the tabs go to the side.
+            Row(Modifier.fillMaxSize()) {
+                NavigationRail {
                     Tab.entries.forEach {
-                        NavigationBarItem(
+                        NavigationRailItem(
                             selected = tab == it,
                             onClick = { tab = it },
                             icon = { Icon(it.icon, contentDescription = null) },
@@ -87,19 +128,23 @@ private fun Root(app: App) {
                         )
                     }
                 }
-            },
-        ) { padding ->
-            val modifier = Modifier.padding(padding).fillMaxSize()
-            when (tab) {
-                Tab.FEED -> Empty("구독한 채널이 없습니다", modifier)
-                Tab.SEARCH -> SearchScreen(
-                    search,
-                    onChannel = { stack.add(Screen.OfChannel(it)) },
-                    onItem = { stack.add(Screen.Watch(it)) },
-                    modifier = modifier,
-                )
-                Tab.SETTINGS -> SettingsScreen(app.settings, modifier)
+                tabContent(Modifier.weight(1f).fillMaxHeight().statusBarsPadding())
             }
+        } else {
+            Scaffold(
+                bottomBar = {
+                    NavigationBar {
+                        Tab.entries.forEach {
+                            NavigationBarItem(
+                                selected = tab == it,
+                                onClick = { tab = it },
+                                icon = { Icon(it.icon, contentDescription = null) },
+                                label = { Text(it.label) },
+                            )
+                        }
+                    }
+                },
+            ) { padding -> tabContent(Modifier.padding(padding).fillMaxSize()) }
         }
         stack.forEachIndexed { index, screen ->
             key(index, screen) {
@@ -113,6 +158,7 @@ private fun Root(app: App) {
                         is Screen.Watch -> WatchScreen(
                             app.youtube, screen.item, app.settings, app.translator,
                             active = index == stack.lastIndex,
+                            keys = app.playerKeys,
                             onChannel = { stack.add(Screen.OfChannel(it)) },
                         )
                     }

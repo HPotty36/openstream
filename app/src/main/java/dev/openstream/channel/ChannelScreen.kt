@@ -9,8 +9,15 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
+import dev.openstream.ui.VideoCard
+import dev.openstream.ui.windowLayout
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Icon
@@ -65,9 +72,16 @@ fun ChannelScreen(platform: StreamingPlatform, channel: Channel, onBack: () -> U
             }
         }
         val list = lists.getValue(selected)
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(list.items) { item -> VideoRow(item, onClick = { onItem(item) }, showChannel = false) }
-            item { PagedFooter(list, empty = "올라온 영상이 없습니다") }
+        if (windowLayout().tablet) {
+            LazyVerticalGrid(GridCells.Adaptive(260.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp)) {
+                gridItems(list.items) { item -> VideoCard(item, onClick = { onItem(item) }, showChannel = false) }
+                item(span = { GridItemSpan(maxLineSpan) }) { PagedFooter(list, empty = "올라온 영상이 없습니다") }
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(list.items) { item -> VideoRow(item, onClick = { onItem(item) }, showChannel = false) }
+                item { PagedFooter(list, empty = "올라온 영상이 없습니다") }
+            }
         }
     }
 }

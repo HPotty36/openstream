@@ -2,9 +2,17 @@ package dev.openstream.search
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
+import dev.openstream.ui.VideoCard
+import dev.openstream.ui.windowLayout
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -57,7 +65,7 @@ fun SearchScreen(state: SearchState, onChannel: (Channel) -> Unit, onItem: (Stre
         OutlinedTextField(
             value = state.query,
             onValueChange = { state.query = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).widthIn(max = 640.dp).fillMaxWidth(),
             singleLine = true,
             shape = CircleShape,
             placeholder = { Text("YouTube 검색") },
@@ -71,14 +79,29 @@ fun SearchScreen(state: SearchState, onChannel: (Channel) -> Unit, onItem: (Stre
             keyboardActions = KeyboardActions(onSearch = { keyboard?.hide(); state.submit() }),
         )
         val results = state.results ?: return@Column
-        LazyColumn {
-            items(results.items) { result ->
-                when (result) {
-                    is SearchResult.OfChannel -> ChannelRow(result.channel) { onChannel(result.channel) }
-                    is SearchResult.OfItem -> VideoRow(result.item, onClick = { onItem(result.item) })
+        if (windowLayout().tablet) {
+            LazyVerticalGrid(GridCells.Adaptive(260.dp), contentPadding = PaddingValues(horizontal = 8.dp)) {
+                gridItems(
+                    results.items,
+                    span = { GridItemSpan(if (it is SearchResult.OfChannel) maxLineSpan else 1) },
+                ) { result ->
+                    when (result) {
+                        is SearchResult.OfChannel -> ChannelRow(result.channel) { onChannel(result.channel) }
+                        is SearchResult.OfItem -> VideoCard(result.item, onClick = { onItem(result.item) })
+                    }
                 }
+                item(span = { GridItemSpan(maxLineSpan) }) { PagedFooter(results, empty = "검색 결과가 없습니다") }
             }
-            item { PagedFooter(results, empty = "검색 결과가 없습니다") }
+        } else {
+            LazyColumn {
+                items(results.items) { result ->
+                    when (result) {
+                        is SearchResult.OfChannel -> ChannelRow(result.channel) { onChannel(result.channel) }
+                        is SearchResult.OfItem -> VideoRow(result.item, onClick = { onItem(result.item) })
+                    }
+                }
+                item { PagedFooter(results, empty = "검색 결과가 없습니다") }
+            }
         }
     }
 }

@@ -5,7 +5,16 @@ package dev.openstream.watch
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.view.KeyEvent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.rememberUpdatedState
+import dev.openstream.ui.windowLayout
+import kotlinx.coroutines.flow.Flow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -114,6 +123,7 @@ fun WatchScreen(
     settings: AppSettings,
     translator: Translator,
     active: Boolean,
+    keys: Flow<Int>,
     onChannel: (Channel) -> Unit,
 ) {
     val context = LocalContext.current
@@ -168,14 +178,30 @@ fun WatchScreen(
         if (position > 0) player.seekTo(position)
     }
 
+    val layout = windowLayout()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    HideSystemBars(landscape && active)
+    // A phone goes full screen by being turned; a tablet or a monitor is always wide, so there it is a choice.
+    var fullscreenChosen by remember { mutableStateOf(false) }
+    val fullscreen = if (layout.tablet) fullscreenChosen else landscape
+    val tabletNow by rememberUpdatedState(layout.tablet)
+    HideSystemBars(fullscreen && active)
+    BackHandler(active && layout.tablet && fullscreenChosen) { fullscreenChosen = false }
 
-    Column(Modifier.fillMaxSize()) {
-        Box(
-            if (landscape) Modifier.fillMaxSize().background(Color.Black)
-            else Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black),
-        ) {
+    // Keyboard shortcuts, for a tablet with a keyboard or a phone on a monitor.
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        keys.collect { code ->
+            when (code) {
+                KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_K -> if (player.isPlaying) player.pause() else player.play()
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_J -> player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0))
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_L -> player.seekTo(player.currentPosition + 10_000)
+                KeyEvent.KEYCODE_F -> if (tabletNow) fullscreenChosen = !fullscreenChosen
+            }
+        }
+    }
+
+    val playerBox: @Composable (Modifier) -> Unit = { modifier ->
+        Box(modifier.background(Color.Black)) {
             AndroidView(
                 factory = {
                     PlayerView(it).apply {
@@ -183,11 +209,13 @@ fun WatchScreen(
                         setShowNextButton(false)
                         setShowPreviousButton(false)
                         setFullscreenButtonClickListener { full ->
-                            (it as? Activity)?.requestedOrientation =
+                            if (tabletNow) fullscreenChosen = full
+                            else (it as? Activity)?.requestedOrientation =
                                 if (full) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                         }
                     }
                 },
+                update = { it.setFullscreenButtonState(fullscreen) },
                 modifier = Modifier.fillMaxSize(),
             )
             val message = error
@@ -203,8 +231,27 @@ fun WatchScreen(
                 playback == null -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
             }
         }
-        if (!landscape) {
-            Details(platform, playback?.item ?: item, playback, source, { source = it }, translator, settings, onChannel)
+    }
+
+    val shown = playback?.item ?: item
+    when {
+        fullscreen -> playerBox(Modifier.fillMaxSize())
+        // Wide window: the video and its description on the left, the comments in their own column.
+        layout.wide -> Row(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            Column(Modifier.weight(1.7f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                Box(Modifier.fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
+                    playerBox(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp).aspectRatio(16f / 9f))
+                }
+                Header(shown, playback, source, { source = it }, onChannel)
+            }
+            Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
+        }
+        else -> Column(Modifier.fillMaxSize()) {
+            playerBox(Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f))
+            Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding()) {
+                Header(shown, playback, source, { source = it }, onChannel)
+                HorizontalDivider()
+            }
         }
     }
 }
@@ -230,15 +277,13 @@ private sealed interface Translation {
 }
 
 @Composable
-private fun Details(
+private fun Comments(
     platform: StreamingPlatform,
     item: StreamItem,
-    playback: Playback?,
-    source: Source?,
-    onSource: (Source) -> Unit,
     translator: Translator,
     settings: AppSettings,
-    onChannel: (Channel) -> Unit,
+    modifier: Modifier,
+    header: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val comments = remember(item.id) { Paged(scope) { platform.comments(item.id, it) } }
@@ -266,10 +311,9 @@ private fun Details(
         }
     }
 
-    LazyColumn(Modifier.fillMaxSize().navigationBarsPadding()) {
-        item { Header(item, playback, source, onSource, onChannel) }
+    LazyColumn(modifier) {
+        item { header() }
         item {
-            HorizontalDivider()
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("댓글", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).padding(vertical = 14.dp))
                 if (canTranslate) {
