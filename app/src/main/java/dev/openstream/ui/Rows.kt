@@ -32,6 +32,12 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.openstream.platform.Channel
 import dev.openstream.platform.ItemKind
+import dev.openstream.platform.PlatformId
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import dev.openstream.platform.StreamItem
 
 fun formatDuration(seconds: Long): String {
@@ -66,6 +72,51 @@ fun Avatar(url: String?, size: Dp, modifier: Modifier = Modifier) {
         contentScale = ContentScale.Crop,
         modifier = modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHighest),
     )
+}
+
+// The platforms' own colors, so a badge reads at a glance; the letter is there for when the color does not.
+private fun PlatformId.badge(): Triple<String, Color, Color> = when (this) {
+    PlatformId.YOUTUBE -> Triple("Y", Color(0xFFFF0033), Color.White)
+    PlatformId.CHZZK -> Triple("C", Color(0xFF00FFA3), Color.Black)
+    PlatformId.TWITCH -> Triple("T", Color(0xFF9146FF), Color.White)
+}
+
+/**
+ * A channel's picture with a small mark of its platform in the corner. A streamer's YouTube and
+ * CHZZK channels often share a name and a picture; the mark is what tells them apart.
+ */
+@Composable
+fun ChannelAvatar(channel: Channel, size: Dp, modifier: Modifier = Modifier) {
+    val badge = (size * 0.36f).coerceAtLeast(16.dp)
+    val (letter, fill, ink) = channel.platform.badge()
+    Box(modifier.size(size)) {
+        Avatar(channel.avatarUrl, size)
+        // Until the picture is found, the first letter of the name stands in for it.
+        if (channel.avatarUrl == null) {
+            Text(
+                channel.name.take(1).uppercase(),
+                style = if (size >= 48.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+        Box(
+            Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(badge)
+                // A ring in the background color, so the mark stands off the picture under it.
+                .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                .padding(2.dp).clip(CircleShape).background(fill),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                letter,
+                color = ink,
+                fontSize = (badge.value * 0.5f).sp,
+                fontWeight = FontWeight.Bold,
+                lineHeight = (badge.value * 0.5f).sp,
+                style = LocalTextStyle.current.copy(platformStyle = PlatformTextStyle(includeFontPadding = false)),
+            )
+        }
+    }
 }
 
 /** The one chip of the app: the chosen one is filled light, so it reads at a glance on black. */
@@ -158,11 +209,11 @@ fun ChannelRow(channel: Channel, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(channel.avatarUrl, 48.dp)
+        ChannelAvatar(channel, 48.dp)
         Spacer(Modifier.width(12.dp))
         Column {
             Text(channel.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("채널", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(channel.platform.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

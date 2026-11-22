@@ -489,7 +489,7 @@ private fun Header(
                 .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Avatar(channel.avatarUrl, 36.dp)
+            dev.openstream.ui.ChannelAvatar(channel, 36.dp)
             Spacer(Modifier.width(12.dp))
             Text(
                 channel.name,

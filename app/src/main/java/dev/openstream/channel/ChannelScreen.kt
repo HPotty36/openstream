@@ -78,7 +78,7 @@ fun ChannelScreen(
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로") }
-            Avatar(channel.avatarUrl, 36.dp)
+            dev.openstream.ui.ChannelAvatar(channel, 36.dp)
             Spacer(Modifier.width(12.dp))
             Text(
                 channel.name,

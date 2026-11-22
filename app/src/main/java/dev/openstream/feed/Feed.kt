@@ -39,7 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import dev.openstream.library.rememberImporter
 import dev.openstream.platform.ItemKind
-import dev.openstream.ui.Avatar
+import dev.openstream.ui.ChannelAvatar
 import dev.openstream.ui.Logo
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
@@ -266,11 +266,7 @@ private fun StripChannel(channel: Channel, live: Boolean, onClick: () -> Unit) {
     ) {
         val ring = if (live) MaterialTheme.colorScheme.primary else Color.Transparent
         Box(Modifier.size(64.dp).border(2.dp, ring, CircleShape), contentAlignment = Alignment.Center) {
-            Avatar(channel.avatarUrl, 56.dp)
-            // Until the picture is found, the first letter stands in for it.
-            if (channel.avatarUrl == null) {
-                Text(channel.name.take(1).uppercase(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-            }
+            ChannelAvatar(channel, 56.dp)
         }
         // Two lines, so most names fit whole; a live channel says so first.
         Text(

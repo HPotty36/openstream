@@ -84,9 +84,10 @@ fun notifyUpdates(context: Context, fresh: List<StreamItem>) {
     }
 
     val (lives, videos) = items.partition { it.kind == ItemKind.LIVE }
-    lives.forEach { post("${it.platform.id}|${it.id}".hashCode(), "${it.channel.name} 방송 시작", it.title) }
+    // The platform is named too: the same streamer often has a channel of the same name on two of them.
+    lives.forEach { post("${it.platform.id}|${it.id}".hashCode(), "${it.channel.name} 방송 시작 · ${it.platform.label}", it.title) }
     if (videos.size <= 3) {
-        videos.forEach { post("${it.platform.id}|${it.id}".hashCode(), it.channel.name, it.title) }
+        videos.forEach { post("${it.platform.id}|${it.id}".hashCode(), "${it.channel.name} · ${it.platform.label}", it.title) }
     } else {
         post(1, "새 영상 ${videos.size}개", videos.map { it.channel.name }.distinct().take(5).joinToString())
     }
