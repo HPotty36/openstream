@@ -57,6 +57,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
@@ -80,6 +81,7 @@ import dev.openstream.ui.Paged
 import dev.openstream.ui.PagedFooter
 import dev.openstream.ui.errorText
 import dev.openstream.ui.published
+import dev.openstream.ui.relativeTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -120,7 +122,11 @@ fun WatchScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
 
-    val player = remember { ExoPlayer.Builder(context).build().apply { playWhenReady = true } }
+    val player = remember {
+        // Fallback: when a phone's hardware decoder gives up on a stream, try its next decoder instead of failing.
+        ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true)).build()
+            .apply { playWhenReady = true }
+    }
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
             override fun onPlayerError(e: PlaybackException) {
@@ -153,8 +159,9 @@ fun WatchScreen(
             error = errorText(e)
         }
     }
-    LaunchedEffect(source) {
+    LaunchedEffect(source, attempt) {
         val chosen = source ?: return@LaunchedEffect
+        error = null
         val position = player.currentPosition
         player.setMediaSource(mediaSource(chosen))
         player.prepare()
@@ -369,7 +376,7 @@ private fun CommentRow(
             val meta = listOfNotNull(
                 "고정".takeIf { comment.pinned },
                 comment.author.takeIf { it.isNotEmpty() },
-                comment.publishedText,
+                comment.publishedAt?.let { relativeTime(it) } ?: comment.publishedText,
             ).joinToString(" · ")
             Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(comment.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))

@@ -196,6 +196,7 @@ class YouTubePlatform(client: OkHttpClient) : StreamingPlatform {
         author = uploaderName.orEmpty(),
         text = commentText.plain(),
         authorAvatarUrl = uploaderAvatars.best(),
+        publishedAt = uploadDate?.instant?.toEpochMilli(),
         publishedText = textualUploadDate,
         likeCount = likeCount.takeIf { it >= 0 },
         pinned = isPinned,

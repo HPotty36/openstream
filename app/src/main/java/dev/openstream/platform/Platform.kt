@@ -76,6 +76,7 @@ data class Comment(
     val author: String,
     val text: String,
     val authorAvatarUrl: String? = null,
+    val publishedAt: Long? = null,
     val publishedText: String? = null,
     val likeCount: Int? = null,
     val pinned: Boolean = false,
