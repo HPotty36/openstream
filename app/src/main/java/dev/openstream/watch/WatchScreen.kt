@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -140,6 +141,14 @@ private fun mediaSource(source: Source): MediaSource {
     }
 }
 
+/** The quality button of a stream that comes in several: what is offered, what was picked, and the button's words. */
+private class QualityMenu(
+    val variants: List<Variant>,
+    val choice: QualityChoice,
+    val label: String,
+    val onChoose: (QualityChoice) -> Unit,
+)
+
 private fun Source.label(): String = when {
     height == null -> "자동"
     fps != null && fps > 30 -> "${height}p$fps"
@@ -177,10 +186,26 @@ fun WatchScreen(
 
     val player = remember { buildPlayer(context) }
     val latestPlayback by rememberUpdatedState(playback)
+    // A stream in several qualities (live, replays) starts at the best one; the viewer can pick another.
+    var quality by remember { mutableStateOf<QualityChoice>(QualityChoice.Best) }
+    var variants by remember { mutableStateOf(emptyList<Variant>()) }
+    var playingHeight by remember { mutableIntStateOf(0) }
+    val latestQuality by rememberUpdatedState(quality)
+    LaunchedEffect(quality) { player.applyQuality(quality) }
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
             override fun onPlayerError(e: PlaybackException) {
                 error = "재생하지 못했습니다 (${e.errorCodeName})."
+            }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                variants = variantsOf(tracks)
+                // A fixed pick names tracks of the stream that was loaded; a new load needs it again.
+                if (latestQuality is QualityChoice.Fixed) player.applyQuality(latestQuality)
+            }
+
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.height > 0) playingHeight = videoSize.height
             }
         }
         player.addListener(listener)
@@ -325,6 +350,10 @@ fun WatchScreen(
     // A live broadcast has no file to save.
     val downloadOptions: (suspend () -> List<DownloadOption>)? =
         if (shown.kind == ItemKind.LIVE) null else ({ platform.downloads(shown.id) })
+    // Only a stream that comes in several qualities has them to pick from; a YouTube video picks by source instead.
+    val qualityMenu = if (source != null && source?.type != SourceType.PROGRESSIVE && variants.size > 1) {
+        QualityMenu(variants, quality, qualityLabel(quality, variants, playingHeight)) { quality = it }
+    } else null
     when {
         pip || fullscreen -> playerBox(Modifier.fillMaxSize())
         // Wide window: the video and its description on the left, the comments in their own column.
@@ -333,7 +362,7 @@ fun WatchScreen(
                 Box(Modifier.fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
                     playerBox(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp).aspectRatio(16f / 9f))
                 }
-                Header(shown, playback, source, { source = it }, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, qualityMenu, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
             else Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
@@ -341,7 +370,7 @@ fun WatchScreen(
         else -> Column(Modifier.fillMaxSize()) {
             playerBox(Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f))
             val header: @Composable () -> Unit = {
-                Header(shown, playback, source, { source = it }, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, qualityMenu, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
                 HorizontalDivider()
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), header)
@@ -469,6 +498,7 @@ private fun Header(
     playback: Playback?,
     source: Source?,
     onSource: (Source) -> Unit,
+    qualityMenu: QualityMenu?,
     onChannel: (Channel) -> Unit,
     subscribed: Boolean?,
     onSubscribe: () -> Unit,
@@ -551,7 +581,30 @@ private fun Header(
                     }
                 }
             }
-            if (playback != null && source != null && playback.sources.size > 1) {
+            if (qualityMenu != null) {
+                // The qualities inside one stream, best first, then the player's own pick.
+                var open by remember { mutableStateOf(false) }
+                Box {
+                    Action(Icons.Outlined.Tune, qualityMenu.label) { open = true }
+                    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                        val marked = chosenVariant(qualityMenu.choice, qualityMenu.variants)
+                        val check: @Composable (Boolean) -> Unit = { on -> if (on) Icon(Icons.Outlined.Check, contentDescription = "선택됨") }
+                        qualityMenu.variants.forEach { variant ->
+                            DropdownMenuItem(
+                                text = { Text(variant.label) },
+                                onClick = { open = false; qualityMenu.onChoose(QualityChoice.Fixed(variant)) },
+                                trailingIcon = { check(variant == marked) },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("자동") },
+                            onClick = { open = false; qualityMenu.onChoose(QualityChoice.Auto) },
+                            trailingIcon = { check(qualityMenu.choice == QualityChoice.Auto) },
+                        )
+                    }
+                }
+            } else if (playback != null && source?.type == SourceType.PROGRESSIVE && playback.sources.size > 1) {
+                // A YouTube video: one source per height.
                 var open by remember { mutableStateOf(false) }
                 Box {
                     Action(Icons.Outlined.Tune, source.label()) { open = true }

@@ -63,7 +63,7 @@ fun errorText(e: Throwable): String = when (e) {
     is GeographicRestrictionException -> "이 지역에서는 볼 수 없는 영상입니다."
     is PrivateContentException -> "비공개 영상입니다."
     is PaidContentException -> "유료 영상입니다."
-    is ContentNotAvailableException -> "볼 수 없는 영상입니다."
+    is ContentNotAvailableException -> dev.openstream.platform.youtube.youtubeReason(e) ?: "볼 수 없는 영상입니다."
     is ReCaptchaException -> "요청이 많아 잠시 차단되었습니다. 조금 뒤에 다시 시도하세요."
     is IOException -> "네트워크에 연결할 수 없습니다."
     else -> e.message ?: e.javaClass.simpleName

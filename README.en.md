@@ -40,7 +40,7 @@ Uploads from the channels you subscribed to, newest first. No recommendations, n
 | | Search | Videos | Live | Chat and comments | Download |
 |---|---|---|---|---|---|
 | **YouTube** | ✓ | ✓ | ✓ | comments, live chat | up to 1080p |
-| **CHZZK** | ✓ | replays | ✓ (up to 720p) | live chat | replays |
+| **CHZZK** | ✓ | replays | ✓ | live chat | replays |
 | **Twitch** | ✓ | past broadcasts | ✓ | live chat | — |
 
 All three are read without an account. Videos that need a login (age verification, memberships) do not play. Twitch past broadcasts are blocked in South Korea.
@@ -49,6 +49,7 @@ All three are read without an account. Videos that need a login (age verificatio
 With an Anthropic API key, video titles and channel names that are neither Korean nor English show up in Korean from the start, with a button to see the original. Comments, video descriptions and channel descriptions get a translate button, and live chat is translated as it arrives while translation is on. Korean text is left alone. Translated titles are kept on the device and not sent again.
 
 ### Playback
+- **Quality**: live streams and replays start at the highest quality the broadcast offers (usually 1080p60); a menu picks a lower one or automatic
 - **Picture-in-picture** when you leave the app while a video plays
 - **Sound only** with the screen off or another app in front
 - **SponsorBlock** skips sponsor segments on YouTube

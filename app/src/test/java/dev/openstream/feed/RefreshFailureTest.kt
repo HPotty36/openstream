@@ -37,4 +37,10 @@ class RefreshFailureTest {
         )
         assertEquals("YouTube에서 볼 수 없는 채널입니다.", goneReason(ContentNotAvailableException("This channel does not exist.")))
     }
+
+    @Test fun aVideoBlockedHereSaysSo() {
+        val blocked = ContentNotAvailableException("Got error UNPLAYABLE: \"업로더가 동영상을 해당 국가에서 볼 수 있도록 설정하지 않았습니다.\"")
+        assertEquals("업로더가 동영상을 해당 국가에서 볼 수 있도록 설정하지 않았습니다.", dev.openstream.ui.errorText(blocked))
+        assertEquals("볼 수 없는 영상입니다.", dev.openstream.ui.errorText(ContentNotAvailableException("Unknown")))
+    }
 }

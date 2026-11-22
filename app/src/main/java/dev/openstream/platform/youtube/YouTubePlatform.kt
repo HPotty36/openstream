@@ -297,13 +297,16 @@ fun parseFeed(xml: String, channel: Channel): List<StreamItem> =
     }
 
 /**
- * YouTube's own words for why a channel cannot be shown (terminated, deleted, ...), which the extractor
- * passes on as `Got error: "…"`, in Korean since the requests ask for Korean.
+ * YouTube's own words for why something cannot be shown (a terminated channel, a video blocked in this
+ * country, ...), which the extractor passes on as `Got error: "…"` or `Got error UNPLAYABLE: "…"`,
+ * in Korean since the requests ask for Korean. Null when the error carries none.
  */
-fun goneReason(e: ContentNotAvailableException): String =
-    e.message?.let { Regex("Got error: \"(.+)\"", RegexOption.DOT_MATCHES_ALL).find(it)?.groupValues?.get(1)?.trim() }
+fun youtubeReason(e: ContentNotAvailableException): String? =
+    e.message?.let { Regex("Got error[^\"]*\"(.+)\"", RegexOption.DOT_MATCHES_ALL).find(it)?.groupValues?.get(1)?.trim() }
         ?.takeIf { it.isNotEmpty() }
-        ?: "YouTube에서 볼 수 없는 채널입니다."
+
+/** Why a channel cannot be shown, in YouTube's words when it gave some. */
+fun goneReason(e: ContentNotAvailableException): String = youtubeReason(e) ?: "YouTube에서 볼 수 없는 채널입니다."
 
 private fun List<Image>.best(): String? = maxByOrNull { it.height }?.url
 
