@@ -1,6 +1,7 @@
 package dev.openstream.platform.twitch
 
 import dev.openstream.platform.Channel
+import dev.openstream.platform.ChannelGoneException
 import dev.openstream.platform.ChannelTab
 import dev.openstream.platform.ChatMessage
 import dev.openstream.platform.Comment
@@ -132,7 +133,7 @@ class TwitchPlatform(private val client: OkHttpClient) : StreamingPlatform {
 
     private fun user(login: String, extra: String = ""): JsonObject =
         gql("query(\$l:String!){user(login:\$l){$USER stream{$STREAM} $extra}}", vars("l", login)).child("user")
-            ?: throw PlatformException("없는 채널입니다.")
+            ?: throw ChannelGoneException("Twitch에 없는 채널입니다.")
 
     override suspend fun channel(channelId: String): Channel = withContext(Dispatchers.IO) { channelOf(user(channelId)) }
 

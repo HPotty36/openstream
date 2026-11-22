@@ -98,7 +98,10 @@ data class DownloadOption(
 )
 
 /** Something the platform refuses or cannot do, worded for the person watching. */
-class PlatformException(message: String) : Exception(message)
+open class PlatformException(message: String) : Exception(message)
+
+/** The channel is no longer there: deleted, terminated or renamed away. [message] says why when the platform did. */
+class ChannelGoneException(message: String) : PlatformException(message)
 
 data class ChatMessage(val id: String, val author: String, val text: String)
 

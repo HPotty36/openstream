@@ -77,7 +77,8 @@ import dev.openstream.settings.AppSettings
 import dev.openstream.ui.VideoCard
 import dev.openstream.ui.VideoRow
 import dev.openstream.ui.windowLayout
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -96,8 +97,8 @@ class FeedRefresher(
     private val scope: CoroutineScope,
 ) {
     var refreshing by mutableStateOf(false); private set
-    /** How many channels could not be read in the last refresh. */
-    var failed by mutableIntStateOf(0); private set
+    /** The channels the last refresh could not read, each with the reason. */
+    var failures by mutableStateOf(emptyList<RefreshFailure>()); private set
     /** When the feed was last refreshed, for the screen to show; 0 when it never was. */
     var lastRefresh by mutableStateOf(settings.lastFeedRefresh); private set
 
@@ -112,20 +113,26 @@ class FeedRefresher(
         run {
             try {
                 val known = library.feedKeys()
-                val failures = AtomicInteger()
+                val failed = ConcurrentLinkedQueue<RefreshFailure>()
                 val gate = Semaphore(8)
                 val items = coroutineScope {
                     library.subscriptions().map { channel ->
                         async {
                             gate.withPermit {
-                                runCatching { platform(channel.platform)?.latest(channel).orEmpty() }
-                                    .getOrElse { failures.incrementAndGet(); emptyList() }
+                                try {
+                                    platform(channel.platform)?.latest(channel).orEmpty()
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    failed.add(refreshFailure(channel, e))
+                                    emptyList()
+                                }
                             }
                         }
                     }.awaitAll().flatten()
                 }
                 library.refreshFeed(items)
-                failed = failures.get()
+                failures = failed.sortedWith(compareByDescending<RefreshFailure> { it.gone }.thenBy { it.channel.name.lowercase() })
                 val first = settings.lastFeedRefresh == 0L
                 settings.lastFeedRefresh = System.currentTimeMillis()
                 lastRefresh = settings.lastFeedRefresh
@@ -134,6 +141,12 @@ class FeedRefresher(
                 refreshing = false
             }
         }
+    }
+
+    /** Unsubscribes [channel] and drops it from [failures]. */
+    suspend fun unsubscribeFailed(channel: Channel) {
+        library.unsubscribe(channel)
+        failures = failures.filterNot { it.channel.platform == channel.platform && it.channel.id == channel.id }
     }
 
     fun refreshIfStale() {
@@ -177,6 +190,7 @@ fun FeedScreen(
     onItem: (StreamItem) -> Unit,
     onChannel: (Channel) -> Unit,
     onAllChannels: () -> Unit,
+    onFailures: () -> Unit,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -201,13 +215,18 @@ fun FeedScreen(
             Text("OpenStream", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
             if (!refresher.refreshing) {
-                val status = when {
-                    refresher.failed > 0 -> "채널 ${refresher.failed}개를 불러오지 못함"
-                    refresher.lastRefresh > 0 -> "${relativeTime(refresher.lastRefresh)} 갱신"
-                    else -> null
-                }
-                if (status != null) {
-                    Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val failures = refresher.failures
+                if (failures.isNotEmpty()) {
+                    // Pressable, like 전체: it opens the list of those channels and why each failed.
+                    TextButton(onClick = onFailures, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text("채널 ${failures.size}개를 불러오지 못함", style = MaterialTheme.typography.bodySmall)
+                    }
+                } else if (refresher.lastRefresh > 0) {
+                    Text(
+                        "${relativeTime(refresher.lastRefresh)} 갱신",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
             if (refresher.refreshing) {

@@ -135,6 +135,7 @@ private sealed interface Screen {
     data class Watch(val item: StreamItem) : Screen
     data class Local(val file: SavedFile) : Screen
     data object Subscriptions : Screen
+    data object RefreshFailures : Screen
 }
 
 @Composable
@@ -160,6 +161,7 @@ private fun Root(app: App) {
                 onItem = { stack.add(Screen.Watch(it)) },
                 onChannel = { stack.add(Screen.OfChannel(it)) },
                 onAllChannels = { stack.add(Screen.Subscriptions) },
+                onFailures = { stack.add(Screen.RefreshFailures) },
                 onSearch = { tab = Tab.SEARCH },
                 modifier = modifier,
             )
@@ -246,6 +248,11 @@ private fun Root(app: App) {
                         )
                         Screen.Subscriptions -> dev.openstream.library.SubscriptionsScreen(
                             app.library,
+                            onChannel = { stack.add(Screen.OfChannel(it)) },
+                            onBack = { stack.removeAt(stack.lastIndex) },
+                        )
+                        Screen.RefreshFailures -> dev.openstream.feed.RefreshFailuresScreen(
+                            app.feed,
                             onChannel = { stack.add(Screen.OfChannel(it)) },
                             onBack = { stack.removeAt(stack.lastIndex) },
                         )

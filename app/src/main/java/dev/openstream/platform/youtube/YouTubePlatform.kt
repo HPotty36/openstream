@@ -1,7 +1,10 @@
 package dev.openstream.platform.youtube
 
 import dev.openstream.platform.Channel
+import dev.openstream.platform.ChannelGoneException
 import dev.openstream.platform.ChannelTab
+import dev.openstream.platform.PlatformException
+import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
 import dev.openstream.platform.ChatMessage
 import dev.openstream.platform.Comment
 import dev.openstream.platform.ItemKind
@@ -144,15 +147,25 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
 
     /** From the channel's RSS feed: one small request, where the channel page takes several large ones. */
     override suspend fun latest(channel: Channel): List<StreamItem> = withContext(Dispatchers.IO) {
-        val channelId = youtubeChannelId(channel.id)
-            ?: return@withContext channelItems(channel.id, ChannelTab.VIDEOS, null).items
+        val channelId = youtubeChannelId(channel.id) ?: return@withContext fromPage(channel)
         val request = okhttp3.Request.Builder().url("https://www.youtube.com/feeds/videos.xml?channel_id=$channelId")
             .header("User-Agent", USER_AGENT).build()
         val xml = client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("feed ${response.code}")
-            response.body.string()
-        }
+            when {
+                response.isSuccessful -> response.body.string()
+                // No feed: the channel is gone, or has no feed for some other reason. Its page tells which.
+                response.code == 404 -> null
+                else -> throw PlatformException("YouTube가 응답하지 않습니다 (HTTP ${response.code}).")
+            }
+        } ?: return@withContext fromPage(channel)
         parseFeed(xml, channel)
+    }
+
+    /** The newest uploads from the channel page; a channel YouTube took down fails with YouTube's own reason. */
+    private suspend fun fromPage(channel: Channel): List<StreamItem> = try {
+        channelItems(channel.id, ChannelTab.VIDEOS, null).items
+    } catch (e: ContentNotAvailableException) {
+        throw ChannelGoneException(goneReason(e))
     }
 
     private fun streamInfo(itemId: String): StreamInfo = StreamInfo.getInfo(service.getStreamExtractor(itemId).inKorean())
@@ -282,6 +295,15 @@ fun parseFeed(xml: String, channel: Channel): List<StreamItem> =
             publishedAt = runCatching { OffsetDateTime.parse(entry.selectFirst("published")!!.text()).toInstant().toEpochMilli() }.getOrNull(),
         )
     }
+
+/**
+ * YouTube's own words for why a channel cannot be shown (terminated, deleted, ...), which the extractor
+ * passes on as `Got error: "…"`, in Korean since the requests ask for Korean.
+ */
+fun goneReason(e: ContentNotAvailableException): String =
+    e.message?.let { Regex("Got error: \"(.+)\"", RegexOption.DOT_MATCHES_ALL).find(it)?.groupValues?.get(1)?.trim() }
+        ?.takeIf { it.isNotEmpty() }
+        ?: "YouTube에서 볼 수 없는 채널입니다."
 
 private fun List<Image>.best(): String? = maxByOrNull { it.height }?.url
 
