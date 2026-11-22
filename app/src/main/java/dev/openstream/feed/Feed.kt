@@ -40,6 +40,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import dev.openstream.library.rememberImporter
 import dev.openstream.platform.ItemKind
 import dev.openstream.ui.ChannelAvatar
+import androidx.compose.material3.TextButton
+import dev.openstream.translate.TextKind
+import dev.openstream.translate.autoTranslated
 import dev.openstream.ui.Logo
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
@@ -171,6 +174,7 @@ fun FeedScreen(
     refresher: FeedRefresher,
     onItem: (StreamItem) -> Unit,
     onChannel: (Channel) -> Unit,
+    onAllChannels: () -> Unit,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -221,9 +225,13 @@ fun FeedScreen(
             val strip = remember(all, live) { all.sortedByDescending { (it.platform to it.id) in live } }
             val head: @Composable () -> Unit = {
                 Column {
-                    // 10 + the cell's own 6 puts the first picture on the 16dp line the logo and the thumbnails start at.
-                    LazyRow(contentPadding = PaddingValues(horizontal = 10.dp)) {
-                        items(strip) { channel -> StripChannel(channel, (channel.platform to channel.id) in live) { onChannel(channel) } }
+                    Row(verticalAlignment = Alignment.Top) {
+                        // 10 + the cell's own 6 puts the first picture on the 16dp line the logo and the thumbnails start at.
+                        LazyRow(Modifier.weight(1f), contentPadding = PaddingValues(start = 10.dp, end = 4.dp)) {
+                            items(strip) { channel -> StripChannel(channel, (channel.platform to channel.id) in live) { onChannel(channel) } }
+                        }
+                        // Stays put while the row scrolls, level with the pictures.
+                        TextButton(onClick = onAllChannels, modifier = Modifier.padding(top = 20.dp, end = 4.dp)) { Text("전체") }
                     }
                     Row(
                         Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
@@ -264,17 +272,17 @@ private fun StripChannel(channel: Channel, live: Boolean, onClick: () -> Unit) {
         Modifier.width(76.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val ring = if (live) MaterialTheme.colorScheme.primary else Color.Transparent
-        Box(Modifier.size(64.dp).border(2.dp, ring, CircleShape), contentAlignment = Alignment.Center) {
-            ChannelAvatar(channel, 56.dp)
+        Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
+            ChannelAvatar(channel, 56.dp, live = live)
         }
-        // Two lines, so most names fit whole; a live channel says so first.
+        val name = autoTranslated(channel.name, TextKind.NAME)
+        // Two lines, so most names fit whole; a live channel says so first. A name of one long word
+        // gets one line and an ellipsis, since a second line would only hold its last letter or two.
         Text(
-            if (live) "방송 중\n${channel.name}" else channel.name,
+            if (live) "방송 중\n$name" else name,
             style = MaterialTheme.typography.labelMedium.copy(lineHeight = 15.sp),
             color = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            minLines = 2,
+            maxLines = if (live || name.trim().contains(' ')) 2 else 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 6.dp),

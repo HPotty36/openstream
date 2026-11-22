@@ -39,6 +39,8 @@ import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import dev.openstream.platform.StreamItem
+import dev.openstream.translate.TextKind
+import dev.openstream.translate.autoTranslated
 
 fun formatDuration(seconds: Long): String {
     val h = seconds / 3600
@@ -84,13 +86,16 @@ private fun PlatformId.badge(): Triple<String, Color, Color> = when (this) {
 /**
  * A channel's picture with a small mark of its platform in the corner. A streamer's YouTube and
  * CHZZK channels often share a name and a picture; the mark is what tells them apart.
+ * A [live] channel gets a ring around the picture; the box then grows by 8dp, and the mark sits on the ring.
  */
 @Composable
-fun ChannelAvatar(channel: Channel, size: Dp, modifier: Modifier = Modifier) {
+fun ChannelAvatar(channel: Channel, size: Dp, modifier: Modifier = Modifier, live: Boolean = false) {
     val badge = (size * 0.36f).coerceAtLeast(16.dp)
     val (letter, fill, ink) = channel.platform.badge()
-    Box(modifier.size(size)) {
-        Avatar(channel.avatarUrl, size)
+    val outer = if (live) size + 8.dp else size
+    Box(modifier.size(outer)) {
+        if (live) Box(Modifier.matchParentSize().border(2.dp, MaterialTheme.colorScheme.primary, CircleShape))
+        Avatar(channel.avatarUrl, size, Modifier.align(Alignment.Center))
         // Until the picture is found, the first letter of the name stands in for it.
         if (channel.avatarUrl == null) {
             Text(
@@ -100,8 +105,9 @@ fun ChannelAvatar(channel: Channel, size: Dp, modifier: Modifier = Modifier) {
                 modifier = Modifier.align(Alignment.Center),
             )
         }
+        // Drawn last, so it lies on top of the ring rather than under it.
         Box(
-            Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(badge)
+            Modifier.align(Alignment.BottomEnd).offset(x = if (live) 0.dp else 2.dp, y = if (live) 0.dp else 2.dp).size(badge)
                 // A ring in the background color, so the mark stands off the picture under it.
                 .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
                 .padding(2.dp).clip(CircleShape).background(fill),
@@ -140,9 +146,10 @@ fun SelectChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> 
  */
 @Composable
 fun MetaLine(item: StreamItem, showChannel: Boolean, showPlatform: Boolean, modifier: Modifier = Modifier) {
+    val name = autoTranslated(item.channel.name, TextKind.NAME)
     val lead = listOfNotNull(
         item.platform.label.takeIf { showPlatform },
-        item.channel.name.takeIf { showChannel && it.isNotEmpty() },
+        name.takeIf { showChannel && it.isNotEmpty() },
     ).joinToString(" · ")
     val age = item.published()
     if (lead.isEmpty() && age == null) return
@@ -197,23 +204,36 @@ fun VideoRow(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true,
         Thumbnail(item, Modifier.width(152.dp))
         Spacer(Modifier.width(12.dp))
         Column {
-            Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(autoTranslated(item.title), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             MetaLine(item, showChannel, showPlatform, Modifier.padding(top = 4.dp))
         }
     }
 }
 
+/** [note] goes under the name; by default the platform, which a list grouped by platform does not need. */
 @Composable
-fun ChannelRow(channel: Channel, onClick: () -> Unit) {
+fun ChannelRow(channel: Channel, note: String? = channel.platform.label, live: Boolean = false, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ChannelAvatar(channel, 48.dp)
+        ChannelAvatar(channel, 48.dp, live = live)
         Spacer(Modifier.width(12.dp))
         Column {
-            Text(channel.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(channel.platform.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                autoTranslated(channel.name, TextKind.NAME),
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val below = if (live) "방송 중" else note
+            if (below != null) {
+                Text(
+                    below,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

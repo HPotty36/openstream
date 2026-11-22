@@ -112,7 +112,7 @@ fun SearchScreen(state: SearchState, onChannel: (Channel) -> Unit, onItem: (Stre
                         is SearchResult.OfItem -> VideoCard(result.item, onClick = { onItem(result.item) })
                     }
                 }
-                item(span = { GridItemSpan(maxLineSpan) }) { PagedFooter(results, empty = "검색 결과가 없습니다") }
+                item(span = { GridItemSpan(maxLineSpan) }) { PagedFooter(results, empty = "검색 결과가 없습니다.") }
             }
         } else {
             LazyColumn {
@@ -122,7 +122,7 @@ fun SearchScreen(state: SearchState, onChannel: (Channel) -> Unit, onItem: (Stre
                         is SearchResult.OfItem -> VideoRow(result.item, onClick = { onItem(result.item) })
                     }
                 }
-                item { PagedFooter(results, empty = "검색 결과가 없습니다") }
+                item { PagedFooter(results, empty = "검색 결과가 없습니다.") }
             }
         }
     }

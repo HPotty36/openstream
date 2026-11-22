@@ -174,8 +174,8 @@ private fun ApiKey(settings: AppSettings) {
         if (hint != null) TextButton(onClick = { settings.setApiKey(null) }) { Text("삭제") }
     }
     Note(
-        if (hint != null) "저장된 키 …$hint. 번역할 댓글과 채팅은 Anthropic으로 보냅니다."
-        else "키를 저장하면 댓글과 채팅에 번역 버튼이 생깁니다.",
+        if (hint != null) "저장된 키 …$hint. 한국어·영어가 아닌 제목과 채널 이름은 화면에 나올 때, 댓글·채팅·설명은 번역을 누를 때 Anthropic으로 보냅니다."
+        else "키를 저장하면 한국어·영어가 아닌 제목과 채널 이름은 번역해서 보여 주고, 댓글·채팅·설명에는 번역 버튼이 생깁니다.",
     )
 }
 

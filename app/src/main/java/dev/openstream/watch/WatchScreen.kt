@@ -111,6 +111,9 @@ import dev.openstream.platform.youtube.USER_AGENT
 import dev.openstream.settings.AppSettings
 import dev.openstream.translate.Translator
 import dev.openstream.translate.needsTranslation
+import dev.openstream.translate.TextKind
+import dev.openstream.translate.TranslatableText
+import dev.openstream.translate.autoTranslated
 import dev.openstream.ui.Avatar
 import dev.openstream.ui.Paged
 import dev.openstream.ui.PagedFooter
@@ -436,10 +439,10 @@ private fun Comments(
                         isReply = true,
                     )
                 }
-                item { PagedFooter(thread, empty = "답글이 없습니다", modifier = Modifier.padding(start = 44.dp)) }
+                item { PagedFooter(thread, empty = "답글이 없습니다.", modifier = Modifier.padding(start = 44.dp)) }
             }
         }
-        item { PagedFooter(comments, empty = "댓글이 없습니다") }
+        item { PagedFooter(comments, empty = "댓글이 없습니다.") }
     }
 }
 
@@ -473,14 +476,18 @@ private fun Header(
     onDownload: (DownloadOption) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        Text(item.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp))
-        val published = item.published()
-        if (published != null) {
+        // The date sits on the title's action row, so a translate action costs no extra line.
+        TranslatableText(
+            item.title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            auto = true,
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp),
+        ) {
             Text(
-                published,
+                item.published().orEmpty(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
             )
         }
         val channel = item.channel
@@ -492,7 +499,7 @@ private fun Header(
             dev.openstream.ui.ChannelAvatar(channel, 36.dp)
             Spacer(Modifier.width(12.dp))
             Text(
-                channel.name,
+                autoTranslated(channel.name, TextKind.NAME),
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -554,28 +561,15 @@ private fun Header(
                 }
             }
         }
-        val description = playback?.description.orEmpty()
+        val description = playback?.description.orEmpty().trim()
         if (description.isNotBlank()) {
-            var expanded by remember { mutableStateOf(false) }
-            var cut by remember { mutableStateOf(false) }
-            Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Text(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = if (expanded) Int.MAX_VALUE else 3,
-                    overflow = TextOverflow.Ellipsis,
-                    onTextLayout = { if (!expanded) cut = it.hasVisualOverflow },
-                )
-                if (cut) {
-                    Text(
-                        if (expanded) "접기" else "더보기",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
-            }
+            TranslatableText(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                collapsedLines = 3,
+                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+            )
         } else {
             Spacer(Modifier.height(12.dp))
         }

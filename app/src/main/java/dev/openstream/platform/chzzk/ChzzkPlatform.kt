@@ -133,6 +133,10 @@ class ChzzkPlatform(private val client: OkHttpClient) : StreamingPlatform {
         channelOf(get("$API/v1/channels/$channelId"))
     }
 
+    override suspend fun about(channelId: String): String? = withContext(Dispatchers.IO) {
+        get("$API/v1/channels/$channelId").text("channelDescription")?.takeIf { it.isNotBlank() }
+    }
+
     private fun liveDetail(channelId: String): JsonObject = get("$API/v3/channels/$channelId/live-detail")
 
     private fun liveNow(channel: Channel): StreamItem? {

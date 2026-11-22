@@ -138,12 +138,8 @@ fun LibraryScreen(
             }
         } else if (section == Section.CHANNELS) {
             val channels by produceState<List<Channel>?>(null, changes) { value = library.subscriptions() }
-            val list = channels
-            when {
-                list == null -> {}
-                list.isEmpty() -> Message("구독한 채널이 없습니다.")
-                else -> LazyColumn { items(list) { channel -> ChannelRow(channel) { onChannel(channel) } } }
-            }
+            val live by produceState(emptySet<Pair<dev.openstream.platform.PlatformId, String>>(), changes) { value = library.liveChannels() }
+            channels?.let { SubscriptionList(it, live, onChannel, Modifier.fillMaxSize()) }
         } else {
             val which = if (section == Section.LATER) ItemList.LATER else ItemList.HISTORY
             val videos by produceState<List<StreamItem>?>(null, changes, which) { value = library.items(which) }

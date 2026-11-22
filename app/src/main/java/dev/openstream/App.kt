@@ -69,6 +69,8 @@ class App : Application() {
     /** True while the app is shown as that small window; the screen then draws nothing but the video. */
     val inPip = kotlinx.coroutines.flow.MutableStateFlow(false)
 
+    val autoTranslate: dev.openstream.translate.AutoTranslate by lazy { dev.openstream.translate.AutoTranslate(this, translator, scope) }
+
     // A batch of comments takes longer than a page load, so translation waits longer for its answer.
     val translator: Translator by lazy {
         Translator(http.newBuilder().readTimeout(90, TimeUnit.SECONDS).build(), settings::apiKeyBlocking)

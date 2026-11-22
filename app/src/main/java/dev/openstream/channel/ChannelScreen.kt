@@ -5,7 +5,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -47,7 +50,9 @@ import dev.openstream.platform.ChannelTab
 import dev.openstream.platform.PlatformId
 import dev.openstream.platform.StreamItem
 import dev.openstream.platform.StreamingPlatform
-import dev.openstream.ui.Avatar
+import dev.openstream.translate.TextKind
+import dev.openstream.translate.TranslatableText
+import dev.openstream.translate.autoTranslated
 import dev.openstream.ui.Paged
 import dev.openstream.ui.PagedFooter
 import dev.openstream.ui.VideoRow
@@ -81,7 +86,7 @@ fun ChannelScreen(
             dev.openstream.ui.ChannelAvatar(channel, 36.dp)
             Spacer(Modifier.width(12.dp))
             Text(
-                channel.name,
+                autoTranslated(channel.name, TextKind.NAME),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -94,6 +99,18 @@ fun ChannelScreen(
                 false -> Button(onClick = { scope.launch { library.subscribe(listOf(channel)); onSubscribed(channel) } }) { Text("구독") }
                 null -> {}
             }
+        }
+        val about by produceState<String?>(null, channel.id) { value = runCatching { platform.about(channel.id) }.getOrNull() }
+        about?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            // A long about scrolls in its own box, so opening it never pushes the videos off screen.
+            TranslatableText(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                collapsedLines = 2,
+                modifier = Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 8.dp),
+            )
         }
         PrimaryTabRow(selectedTabIndex = TABS.indexOfFirst { it.first == selected }) {
             TABS.forEach { (tab, label) ->
@@ -110,12 +127,12 @@ fun ChannelScreen(
         if (windowLayout().tablet) {
             LazyVerticalGrid(GridCells.Adaptive(260.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp)) {
                 gridItems(list.items) { item -> VideoCard(item, onClick = { onItem(item) }, showChannel = false) }
-                item(span = { GridItemSpan(maxLineSpan) }) { PagedFooter(list, empty = "올라온 영상이 없습니다") }
+                item(span = { GridItemSpan(maxLineSpan) }) { PagedFooter(list, empty = "올라온 영상이 없습니다.") }
             }
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(list.items) { item -> VideoRow(item, onClick = { onItem(item) }, showChannel = false) }
-                item { PagedFooter(list, empty = "올라온 영상이 없습니다") }
+                item { PagedFooter(list, empty = "올라온 영상이 없습니다.") }
             }
         }
     }

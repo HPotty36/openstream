@@ -76,7 +76,11 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) app.scope.launch { app.updater.checkIfDue(System.currentTimeMillis()) }
         setContent {
             val mode by app.settings.themeMode.collectAsState()
-            AppTheme(mode) { Root(app) }
+            AppTheme(mode) {
+                androidx.compose.runtime.CompositionLocalProvider(dev.openstream.translate.LocalAutoTranslate provides app.autoTranslate) {
+                    Root(app)
+                }
+            }
         }
         // From Android 12 the system itself shrinks the app into the small window when it is left,
         // if told beforehand that it may; so the permission follows the playing state.
@@ -130,6 +134,7 @@ private sealed interface Screen {
     data class OfChannel(val channel: Channel) : Screen
     data class Watch(val item: StreamItem) : Screen
     data class Local(val file: SavedFile) : Screen
+    data object Subscriptions : Screen
 }
 
 @Composable
@@ -154,6 +159,7 @@ private fun Root(app: App) {
                 app.library, app.feed,
                 onItem = { stack.add(Screen.Watch(it)) },
                 onChannel = { stack.add(Screen.OfChannel(it)) },
+                onAllChannels = { stack.add(Screen.Subscriptions) },
                 onSearch = { tab = Tab.SEARCH },
                 modifier = modifier,
             )
@@ -237,6 +243,11 @@ private fun Root(app: App) {
                             },
                             onChannel = { stack.add(Screen.OfChannel(it)) },
                             onSubscribed = app.feed::add,
+                        )
+                        Screen.Subscriptions -> dev.openstream.library.SubscriptionsScreen(
+                            app.library,
+                            onChannel = { stack.add(Screen.OfChannel(it)) },
+                            onBack = { stack.removeAt(stack.lastIndex) },
                         )
                         is Screen.Local -> LocalScreen(
                             screen.file.uri, screen.file.title,

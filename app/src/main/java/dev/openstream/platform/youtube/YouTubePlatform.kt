@@ -40,6 +40,7 @@ import org.schabi.newpipe.extractor.channel.tabs.ChannelTabs
 import org.schabi.newpipe.extractor.comments.CommentsInfo
 import org.schabi.newpipe.extractor.comments.CommentsInfoItem
 import org.schabi.newpipe.extractor.localization.ContentCountry
+import org.schabi.newpipe.extractor.Extractor
 import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.stream.AudioStream
@@ -53,6 +54,9 @@ import org.schabi.newpipe.extractor.stream.VideoStream
 
 private typealias ExtractorPage = org.schabi.newpipe.extractor.Page
 
+private val KOREAN = Localization("ko")
+private val KOREA = ContentCountry("KR")
+
 /** YouTube through NewPipeExtractor. Items and channels are identified by their address. */
 class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
     override val id = PlatformId.YOUTUBE
@@ -63,7 +67,17 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
     private val channels = ConcurrentHashMap<String, ChannelInfo>()
 
     init {
-        NewPipe.init(OkHttpDownloader(client), Localization("ko", "KR"), ContentCountry("KR"))
+        NewPipe.init(OkHttpDownloader(client), KOREAN, KOREA)
+    }
+
+    /**
+     * The extractor offers YouTube only in English (its list of languages stops at en-GB), and in English
+     * YouTube hands out the English titles creators or its own translation added. Set on each request,
+     * Korean goes through, and the titles come back as they were written.
+     */
+    private fun <T : Extractor> T.inKorean(): T = apply {
+        forceLocalization(KOREAN)
+        forceContentCountry(KOREA)
     }
 
     private fun token(page: ExtractorPage?): String? {
@@ -74,11 +88,12 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
     private fun page(token: String): ExtractorPage = pages[token] ?: throw IOException("page expired")
 
     override suspend fun search(query: String, page: String?): Page<SearchResult> = withContext(Dispatchers.IO) {
-        val handler = service.searchQHFactory.fromQuery(query, listOf("all"), "")
+        val extractor = service.getSearchExtractor(service.searchQHFactory.fromQuery(query, listOf("all"), "")).inKorean()
         val (items, next) = if (page == null) {
-            SearchInfo.getInfo(service, handler).let { it.relatedItems to it.nextPage }
+            extractor.fetchPage()
+            SearchInfo.getInfo(extractor).let { it.relatedItems to it.nextPage }
         } else {
-            SearchInfo.getMoreItems(service, handler, page(page)).let { it.items to it.nextPage }
+            extractor.getPage(page(page)).let { it.items to it.nextPage }
         }
         Page(items.mapNotNull(::searchResult), token(next))
     }
@@ -90,11 +105,17 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
     }
 
     private fun channelInfo(channelId: String): ChannelInfo =
-        channels.getOrPut(channelId) { ChannelInfo.getInfo(service, channelId) }
+        channels.getOrPut(channelId) {
+            ChannelInfo.getInfo(service.getChannelExtractor(channelId).inKorean().also { it.fetchPage() })
+        }
 
     override suspend fun channel(channelId: String): Channel = withContext(Dispatchers.IO) {
         val info = channelInfo(channelId)
         Channel(id, info.url, info.name, info.avatars.best())
+    }
+
+    override suspend fun about(channelId: String): String? = withContext(Dispatchers.IO) {
+        channelInfo(channelId).description?.takeIf { it.isNotBlank() }
     }
 
     override suspend fun channelItems(channelId: String, tab: ChannelTab, page: String?): Page<StreamItem> =
@@ -106,10 +127,12 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
             }
             val handler = channelInfo(channelId).tabs.firstOrNull { filter in it.contentFilters }
                 ?: return@withContext Page(emptyList())
+            val extractor = service.getChannelTabExtractor(handler).inKorean()
             val (items, next) = if (page == null) {
-                ChannelTabInfo.getInfo(service, handler).let { it.relatedItems to it.nextPage }
+                extractor.fetchPage()
+                ChannelTabInfo.getInfo(extractor).let { it.relatedItems to it.nextPage }
             } else {
-                ChannelTabInfo.getMoreItems(service, handler, page(page)).let { it.items to it.nextPage }
+                extractor.getPage(page(page)).let { it.items to it.nextPage }
             }
             val mapped = items.filterIsInstance<StreamInfoItem>().map {
                 val item = it.toItem()
@@ -132,8 +155,10 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
         parseFeed(xml, channel)
     }
 
+    private fun streamInfo(itemId: String): StreamInfo = StreamInfo.getInfo(service.getStreamExtractor(itemId).inKorean())
+
     override suspend fun playback(itemId: String): Playback = withContext(Dispatchers.IO) {
-        val info = StreamInfo.getInfo(service, itemId)
+        val info = streamInfo(itemId)
         val live = info.streamType == StreamType.LIVE_STREAM || info.streamType == StreamType.AUDIO_LIVE_STREAM
         val item = StreamItem(
             platform = id,
@@ -155,7 +180,7 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
     }
 
     override suspend fun downloads(itemId: String): List<DownloadOption> = withContext(Dispatchers.IO) {
-        val info = StreamInfo.getInfo(service, itemId)
+        val info = streamInfo(itemId)
         val audio = info.audioStreams.filter { it.playable() && it.format == MediaFormat.M4A }
             .sortedWith(compareBy<AudioStream> { it.audioTrackType == null || it.audioTrackType == AudioTrackType.ORIGINAL }
                 .thenBy { it.averageBitrate })
@@ -208,7 +233,7 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
 
     /** The extractor finds where the chat starts; reading it from there is [youtubeLiveChat]'s work. */
     override fun liveChat(itemId: String): Flow<ChatMessage> = flow {
-        val start = StreamInfo.getInfo(service, itemId).liveChatContinuation?.takeIf { it.isNotEmpty() } ?: return@flow
+        val start = streamInfo(itemId).liveChatContinuation?.takeIf { it.isNotEmpty() } ?: return@flow
         emitAll(youtubeLiveChat(client, start))
     }.flowOn(Dispatchers.IO)
 

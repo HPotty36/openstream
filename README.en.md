@@ -34,7 +34,7 @@ Requires Android 8.0 or later. Later versions install from **Settings → Update
 ## Features
 
 ### A home screen of subscriptions only
-Uploads from the channels you subscribed to, newest first. No recommendations, no trending, no live streams from channels you do not follow. Channels that are live move to the front of the row at the top. Shorts appear only for subscribed channels and are left out of search.
+Uploads from the channels you subscribed to, newest first. No recommendations, no trending, no live streams from channels you do not follow. Channels that are live move to the front of the row at the top; **전체** next to it lists every subscription by platform, with a name filter. Shorts appear only for subscribed channels and are left out of search.
 
 ### Three platforms
 | | Search | Videos | Live | Chat and comments | Download |
@@ -45,8 +45,8 @@ Uploads from the channels you subscribed to, newest first. No recommendations, n
 
 All three are read without an account. Videos that need a login (age verification, memberships) do not play. Twitch past broadcasts are blocked in South Korea.
 
-### Comment and chat translation
-With an Anthropic API key, each comment gets a translate button, and live chat is translated as it arrives while translation is on. Korean text is left alone.
+### Translation
+With an Anthropic API key, video titles and channel names that are neither Korean nor English show up in Korean from the start, with a button to see the original. Comments, video descriptions and channel descriptions get a translate button, and live chat is translated as it arrives while translation is on. Korean text is left alone. Translated titles are kept on the device and not sent again.
 
 ### Playback
 - **Picture-in-picture** when you leave the app while a video plays
@@ -72,7 +72,7 @@ Pick the zip from [Google Takeout](https://takeout.google.com) (YouTube subscrip
 1. Create an API key in the [Anthropic Console](https://console.anthropic.com).
 2. Save it under **Settings → 번역**.
 
-The key is encrypted with the Android Keystore and stays on the device; it is not written to backups. Only the comment and chat text being translated is sent to Anthropic. Usage is billed to your Anthropic account.
+The key is encrypted with the Android Keystore and stays on the device; it is not written to backups. Only text being translated is sent to Anthropic: titles and channel names that are neither Korean nor English when they appear on screen, and comments, descriptions and chat when you translate them or turn chat translation on. Usage is billed to your Anthropic account.
 
 ## Building
 

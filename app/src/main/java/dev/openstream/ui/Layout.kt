@@ -34,7 +34,7 @@ fun VideoCard(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(8.dp)) {
         Thumbnail(item, Modifier.fillMaxWidth())
         Text(
-            item.title,
+            dev.openstream.translate.autoTranslated(item.title),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,

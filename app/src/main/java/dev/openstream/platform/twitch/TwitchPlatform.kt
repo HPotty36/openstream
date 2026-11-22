@@ -136,6 +136,10 @@ class TwitchPlatform(private val client: OkHttpClient) : StreamingPlatform {
 
     override suspend fun channel(channelId: String): Channel = withContext(Dispatchers.IO) { channelOf(user(channelId)) }
 
+    override suspend fun about(channelId: String): String? = withContext(Dispatchers.IO) {
+        user(channelId, "description").text("description")?.takeIf { it.isNotBlank() }
+    }
+
     private fun videos(login: String, after: String?, count: Int): Pair<JsonObject, Page<StreamItem>> {
         val cursor = if (after == null) "" else ",after:\"$after\""
         val user = user(login, "videos(first:$count,sort:TIME$cursor){edges{cursor node{$VIDEO}} pageInfo{hasNextPage}}")

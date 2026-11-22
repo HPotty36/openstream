@@ -114,6 +114,9 @@ interface StreamingPlatform {
 
     suspend fun channel(channelId: String): Channel
 
+    /** The channel's own description; null when it has none. */
+    suspend fun about(channelId: String): String?
+
     suspend fun channelItems(channelId: String, tab: ChannelTab, page: String? = null): Page<StreamItem>
 
     /** The channel's newest uploads in one cheap request; this is what the subscription feed is built from. */
