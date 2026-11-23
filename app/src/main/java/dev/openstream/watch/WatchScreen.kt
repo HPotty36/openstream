@@ -22,6 +22,9 @@ import dev.openstream.library.Library
 import dev.openstream.platform.ItemKind
 import dev.openstream.platform.DownloadOption
 import dev.openstream.sponsor.SkipSegment
+import dev.openstream.sponsor.youtubeVideoId
+import dev.openstream.platform.Chapter
+import androidx.compose.runtime.derivedStateOf
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
@@ -172,6 +175,8 @@ fun WatchScreen(
     skipSegments: suspend (StreamItem) -> List<SkipSegment>,
     onChannel: (Channel) -> Unit,
     onSubscribed: (Channel) -> Unit,
+    /** Opens a web address from the description or a comment: in the app when it is one of ours, else in the browser. */
+    onLink: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -276,6 +281,22 @@ fun WatchScreen(
             Toast.makeText(context, "스폰서 구간을 건너뛰었습니다.", Toast.LENGTH_SHORT).show()
         }
     }
+    // Chapters: the ones the platform gives, else a list in the description that starts at 0:00.
+    val chapters = remember(playback) {
+        playback?.takeIf { it.item.kind != ItemKind.LIVE }
+            ?.let { p -> p.chapters.ifEmpty { chaptersFrom(p.description, p.item.durationSeconds?.times(1000)) } }
+            .orEmpty()
+    }
+    var positionMs by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(chapters) {
+        if (chapters.isEmpty()) return@LaunchedEffect
+        while (true) {
+            positionMs = player.currentPosition
+            delay(500)
+        }
+    }
+    // Read through derivedStateOf, so the header changes only when the chapter does, not twice a second.
+    val chapterIndex by remember(chapters) { derivedStateOf { chapterAt(chapters, positionMs) } }
     val toggleLater: () -> Unit = {
         val target = playback?.item ?: item
         val save = !later
@@ -310,10 +331,17 @@ fun WatchScreen(
                             else (it as? Activity)?.requestedOrientation =
                                 if (full) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                         }
+                        // Chapter starts are marked on the time bar as small white notches.
+                        findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)?.apply {
+                            setAdMarkerColor(0xE6FFFFFF.toInt())
+                            setPlayedAdMarkerColor(0xE6FFFFFF.toInt())
+                        }
                     }
                 },
                 update = {
                     it.setFullscreenButtonState(fullscreen)
+                    val marks = chapters.drop(1).map { chapter -> chapter.startMs }
+                    it.setExtraAdGroupMarkers(marks.toLongArray(), BooleanArray(marks.size))
                     // The small window has its own buttons; the player's would only cover the picture.
                     it.useController = !pip
                 },
@@ -356,6 +384,13 @@ fun WatchScreen(
     } else null
     // A time in the description or a comment jumps there; a live broadcast has nowhere to jump to.
     val seekTo: ((Long) -> Unit)? = if (shown.kind == ItemKind.LIVE) null else ({ ms -> player.seekTo(ms); player.play() })
+    // A link to this same video jumps within it instead of opening it again.
+    val openLink: (String) -> Unit = { url ->
+        val target = linkTarget(url)
+        val same = target is LinkTarget.Video && target.platform == shown.platform &&
+            (target.itemId == shown.id || youtubeVideoId(target.itemId)?.let { it == youtubeVideoId(shown.id) } == true)
+        if (same) (target as LinkTarget.Video).startMs?.let { seekTo?.invoke(it) } else onLink(url)
+    }
     when {
         pip || fullscreen -> playerBox(Modifier.fillMaxSize())
         // Wide window: the video and its description on the left, the comments in their own column.
@@ -364,19 +399,19 @@ fun WatchScreen(
                 Box(Modifier.fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
                     playerBox(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp).aspectRatio(16f / 9f))
                 }
-                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, openLink, chapters, chapterIndex, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
-            else Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight(), onSeek = seekTo) {}
+            else Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight(), onSeek = seekTo, onLink = openLink) {}
         }
         else -> Column(Modifier.fillMaxSize()) {
             playerBox(Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f))
             val header: @Composable () -> Unit = {
-                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, openLink, chapters, chapterIndex, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
                 HorizontalDivider()
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), header)
-            else Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), seekTo, header)
+            else Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), seekTo, openLink, header)
         }
     }
 }
@@ -409,6 +444,7 @@ private fun Comments(
     settings: AppSettings,
     modifier: Modifier,
     onSeek: ((Long) -> Unit)? = null,
+    onLink: ((String) -> Unit)? = null,
     header: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -464,6 +500,7 @@ private fun Comments(
                     },
                     durationMs = durationMs,
                     onSeek = onSeek,
+                    onLink = onLink,
                 )
             }
             val thread = replies[index]
@@ -476,6 +513,7 @@ private fun Comments(
                         isReply = true,
                         durationMs = durationMs,
                         onSeek = onSeek,
+                        onLink = onLink,
                     )
                 }
                 item { PagedFooter(thread, empty = "답글이 없습니다.", modifier = Modifier.padding(start = 44.dp)) }
@@ -508,6 +546,9 @@ private fun Header(
     onSource: (Source) -> Unit,
     qualityMenu: QualityMenu?,
     onSeek: ((Long) -> Unit)?,
+    onLink: (String) -> Unit,
+    chapters: List<Chapter>,
+    chapter: Int,
     onChannel: (Channel) -> Unit,
     subscribed: Boolean?,
     onSubscribe: () -> Unit,
@@ -625,6 +666,7 @@ private fun Header(
                 }
             }
         }
+        if (chapters.isNotEmpty()) ChapterBar(chapters, chapter, onSeek)
         val description = playback?.description.orEmpty().trim()
         if (description.isNotBlank()) {
             TranslatableText(
@@ -634,6 +676,7 @@ private fun Header(
                 collapsedLines = 3,
                 durationMs = item.durationSeconds?.times(1000),
                 onTimestamp = onSeek,
+                onLink = onLink,
                 modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
             )
         } else {
@@ -666,6 +709,7 @@ private fun CommentRow(
     onReplies: (() -> Unit)? = null,
     durationMs: Long? = null,
     onSeek: ((Long) -> Unit)? = null,
+    onLink: ((String) -> Unit)? = null,
 ) {
     Row(Modifier.fillMaxWidth().padding(start = if (isReply) 60.dp else 16.dp, end = 16.dp, top = 10.dp)) {
         Avatar(comment.authorAvatarUrl, if (isReply) 24.dp else 32.dp)
@@ -677,10 +721,10 @@ private fun CommentRow(
                 comment.publishedAt?.let { relativeTime(it) } ?: comment.publishedText,
             ).joinToString(" · ")
             Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(withTimestamps(comment.text, durationMs, onSeek), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+            Text(linkedText(comment.text, durationMs, onSeek, onLink), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
             when (translation) {
                 is Translation.Done -> Text(
-                    withTimestamps(translation.text, durationMs, onSeek),
+                    linkedText(translation.text, durationMs, onSeek, onLink),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 6.dp),

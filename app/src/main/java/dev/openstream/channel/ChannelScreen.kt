@@ -71,6 +71,8 @@ fun ChannelScreen(
     onSubscribed: (Channel) -> Unit,
     onBack: () -> Unit,
     onItem: (StreamItem) -> Unit,
+    /** Opens a web address from the channel's about text. */
+    onLink: (String) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     // Only YouTube has shorts.
@@ -108,6 +110,7 @@ fun ChannelScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 collapsedLines = 2,
+                onLink = onLink,
                 modifier = Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState())
                     .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 8.dp),
             )

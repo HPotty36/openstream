@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.outlined.VideoLibrary
 import dev.openstream.channel.ChannelScreen
 import dev.openstream.feed.FeedScreen
+import dev.openstream.watch.toItem
 import dev.openstream.library.ItemList
 import dev.openstream.library.LibraryScreen
 import kotlinx.coroutines.launch
@@ -154,6 +155,23 @@ private fun Root(app: App) {
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     androidx.compose.runtime.LaunchedEffect(stack.size) { if (stack.isNotEmpty()) focus.clearFocus(force = true) }
 
+    // A link in a description, a comment or a channel's about: videos and channels of the three platforms
+    // open here; a channel is looked up first so its page has a name. Anything else goes to the browser.
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val openInBrowser: (String) -> Unit = { url ->
+        runCatching { uriHandler.openUri(if (url.startsWith("www.", ignoreCase = true)) "https://$url" else url) }
+    }
+    val openLink: (String) -> Unit = { url ->
+        when (val target = dev.openstream.watch.linkTarget(url)) {
+            is dev.openstream.watch.LinkTarget.Video -> stack.add(Screen.Watch(target.toItem()))
+            is dev.openstream.watch.LinkTarget.Channel -> scope.launch {
+                val channel = runCatching { app.platform(target.platform)?.channel(target.channelId) }.getOrNull()
+                if (channel != null) stack.add(Screen.OfChannel(channel)) else openInBrowser(url)
+            }
+            is dev.openstream.watch.LinkTarget.Web -> openInBrowser(target.url)
+        }
+    }
+
     val tabContent: @Composable (Modifier) -> Unit = { modifier ->
         when (tab) {
             Tab.FEED -> FeedScreen(
@@ -223,6 +241,7 @@ private fun Root(app: App) {
                             onSubscribed = app.feed::add,
                             onBack = { stack.removeAt(stack.lastIndex) },
                             onItem = { stack.add(Screen.Watch(it)) },
+                            onLink = openLink,
                         )
                         is Screen.Watch -> WatchScreen(
                             app.platform(screen.item.platform) ?: app.youtube, screen.item, app.settings, app.translator,
@@ -245,6 +264,7 @@ private fun Root(app: App) {
                             },
                             onChannel = { stack.add(Screen.OfChannel(it)) },
                             onSubscribed = app.feed::add,
+                            onLink = openLink,
                         )
                         Screen.Subscriptions -> dev.openstream.library.SubscriptionsScreen(
                             app.library,

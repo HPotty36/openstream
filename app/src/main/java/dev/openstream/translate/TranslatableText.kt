@@ -53,9 +53,10 @@ fun TranslatableText(
     kind: TextKind = TextKind.TEXT,
     auto: Boolean = false,
     collapsedLines: Int? = null,
-    // Times in the text ("1:23") become pressable and jump there; null leaves them plain.
+    // Times in the text ("1:23") jump there and web addresses open; null leaves them plain.
     durationMs: Long? = null,
     onTimestamp: ((Long) -> Unit)? = null,
+    onLink: ((String) -> Unit)? = null,
     leading: @Composable RowScope.() -> Unit = {},
 ) {
     val translator = LocalAutoTranslate.current?.translator
@@ -75,7 +76,7 @@ fun TranslatableText(
 
     Column(modifier) {
         Text(
-            dev.openstream.watch.withTimestamps(if (showing) translation!! else text, durationMs, onTimestamp),
+            dev.openstream.watch.linkedText(if (showing) translation!! else text, durationMs, onTimestamp, onLink),
             style = style,
             color = color,
             maxLines = if (!folds || expanded) Int.MAX_VALUE else collapsedLines!!,

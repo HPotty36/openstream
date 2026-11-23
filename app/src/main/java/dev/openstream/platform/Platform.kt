@@ -69,7 +69,16 @@ data class Source(
 )
 
 /** [sources] are ordered best first. */
-data class Playback(val item: StreamItem, val description: String, val sources: List<Source>)
+data class Playback(
+    val item: StreamItem,
+    val description: String,
+    val sources: List<Source>,
+    /** The parts the uploader marked; empty when there are none, or when only the description lists them. */
+    val chapters: List<Chapter> = emptyList(),
+)
+
+/** One part of a video, from [startMs] until the next one starts. */
+data class Chapter(val startMs: Long, val title: String, val thumbnailUrl: String? = null)
 
 data class Comment(
     val id: String,

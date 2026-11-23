@@ -55,6 +55,8 @@ With an Anthropic API key, video titles and channel names that are neither Korea
 - **SponsorBlock** skips sponsor segments on YouTube
 - **Resume** from where you stopped
 - **Timestamps**: a time like "12:34" in the description or a comment jumps there
+- **Chapters**: YouTube chapters are marked on the seek bar, the current one is named under the video, and tapping it opens a list to jump from
+- **Links** in descriptions, comments and channel descriptions open YouTube, CHZZK and Twitch videos and channels inside the app; a time link to the video you're watching seeks there, anything else opens in the browser
 - **Keyboard**: Space/K play-pause, J/L/←/→ seek 10 s, F full screen
 
 ### Downloads

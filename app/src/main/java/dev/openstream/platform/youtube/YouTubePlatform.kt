@@ -2,6 +2,7 @@ package dev.openstream.platform.youtube
 
 import dev.openstream.platform.Channel
 import dev.openstream.platform.ChannelGoneException
+import dev.openstream.platform.Chapter
 import dev.openstream.platform.ChannelTab
 import dev.openstream.platform.PlatformException
 import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
@@ -189,7 +190,8 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
             publishedText = info.textualUploadDate,
             ageRestricted = info.ageLimit >= 18,
         )
-        Playback(item, info.description.plain(), sources(info, live))
+        val chapters = info.streamSegments.map { Chapter(it.startTimeSeconds * 1000L, it.title, it.previewUrl) }
+        Playback(item, info.description.plain(), sources(info, live), chapters)
     }
 
     override suspend fun downloads(itemId: String): List<DownloadOption> = withContext(Dispatchers.IO) {
