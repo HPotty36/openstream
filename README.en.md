@@ -57,7 +57,7 @@ With an Anthropic API key, video titles and channel names that are neither Korea
 - **Timestamps**: a time like "12:34" in the description or a comment jumps there
 - **Chapters**: YouTube chapters are marked on the seek bar, the current one is named under the video, and tapping it opens a list to jump from
 - **Links** in descriptions, comments and channel descriptions open YouTube, CHZZK and Twitch videos and channels inside the app; a time link to the video you're watching seeks there, anything else opens in the browser
-- **GIF comments**: GIFs attached to YouTube comments show and move as they do in the YouTube app
+- **GIFs** in YouTube comments and Twitch chat show and move
 - **Keyboard**: Space/K play-pause, J/L/←/→ seek 10 s, F full screen
 
 ### Downloads
@@ -69,6 +69,7 @@ Pick the zip from [Google Takeout](https://takeout.google.com) (YouTube subscrip
 ### Also
 - **Tablets and external monitors**: side navigation, grids, and comments beside the video
 - **Notifications** for new uploads and streams going live, checked every 30 minutes; off by default
+- **Sharing** from the video screen, the channel screen, or a long press in any list sends the platform's own address (youtu.be, chzzk.naver.com, twitch.tv); videos and replays can be shared from the moment you're at
 - **Themes**: system, light, dark (pure black)
 - **Backup** of subscriptions, watch later and history to one file
 

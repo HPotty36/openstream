@@ -2,6 +2,10 @@ package dev.openstream.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.LocalContext
+import dev.openstream.share.share
+import dev.openstream.share.shareLink
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -198,9 +202,16 @@ fun Thumbnail(item: StreamItem, modifier: Modifier = Modifier) {
     }
 }
 
+/** A tap opens it; a long press shares [link], the platform's own page for it. */
+fun Modifier.openOrShare(link: String?, title: String?, onClick: () -> Unit): Modifier = composed {
+    val context = LocalContext.current
+    if (link == null) clickable(onClick = onClick)
+    else combinedClickable(onLongClickLabel = "공유", onLongClick = { context.share(link, title) }, onClick = onClick)
+}
+
 @Composable
 fun VideoRow(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true, showPlatform: Boolean = false) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Row(Modifier.fillMaxWidth().openOrShare(shareLink(item), item.title, onClick).padding(horizontal = 16.dp, vertical = 8.dp)) {
         Thumbnail(item, Modifier.width(152.dp))
         Spacer(Modifier.width(12.dp))
         Column {
@@ -214,7 +225,7 @@ fun VideoRow(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true,
 @Composable
 fun ChannelRow(channel: Channel, note: String? = channel.platform.label, live: Boolean = false, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().openOrShare(shareLink(channel), channel.name, onClick).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ChannelAvatar(channel, 48.dp, live = live)

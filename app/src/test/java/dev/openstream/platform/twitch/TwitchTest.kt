@@ -27,6 +27,20 @@ class TwitchTest {
         assertNull(parseChatLine("PING :tmi.twitch.tv"))
     }
 
+    // Twitch's own example: the GIF's label fills the message, and the tag says where it sits.
+    @Test fun readsChatGifs() {
+        val gif = "https://media4.giphy.com/media/joSNxeswxuc74Juo8X/giphy.gif?cid=095d7a5dzizsiwgabonagkmigggv8v1spfai91ac3x0dsiy0&ep=v1_gifs_trending&rid=giphy.gif&ct=g"
+        val line = "@badge-info=subscriber/30;badges=broadcaster/1,subscriber/0;color=#033700;display-name=TwitchDev;emotes=;" +
+            "first-msg=0;flags=;gifs=0-33|joSNxeswxuc74Juo8X|$gif;id=401abf17-7e99-45d6-9bdf-43934e839327;mod=0;" +
+            "returning-chatter=0;room-id=12826;subscriber=1;tmi-sent-ts=1783632907018;turbo=0;user-id=141981764;user-type= " +
+            ":twitchdev!twitchdev@twitchdev.tmi.twitch.tv PRIVMSG #twitch :[Y A Y Yes GIF by Djemilah Birnie]"
+        assertEquals(ChatMessage("401abf17-7e99-45d6-9bdf-43934e839327", "TwitchDev", "", listOf(gif)), parseChatLine(line))
+
+        // Positions count characters, so an emoji before the label takes one place, not two.
+        val mixed = "@display-name=a;gifs=2-8|x|https://media.giphy.com/x.gif;id=m :a!a@a.tmi.twitch.tv PRIVMSG #c :😀 [A GIF] nice"
+        assertEquals(ChatMessage("m", "a", "😀  nice", listOf("https://media.giphy.com/x.gif")), parseChatLine(mixed))
+    }
+
     /** Talks to the real Twitch, so it only runs with -Plive=true. */
     @Test fun searchPlaybackChat() = runBlocking {
         assumeTrue(System.getProperty("live") == "true")

@@ -69,7 +69,56 @@ fun parseChatLine(line: String): ChatMessage? {
     val login = line.substring(0, marker).substringAfterLast(" :").removePrefix(":").substringBefore('!')
     // "/me" messages arrive wrapped in a control character.
     val clean = text.removePrefix("\u0001ACTION ").removeSuffix("\u0001")
-    return ChatMessage(tags["id"] ?: "${login}-${text.hashCode()}", tags["display-name"]?.takeIf { it.isNotEmpty() } ?: login, clean)
+    val gifs = chatGifs(tags["gifs"]?.let(::unescapeTag).orEmpty())
+    return ChatMessage(
+        tags["id"] ?: "${login}-${text.hashCode()}",
+        tags["display-name"]?.takeIf { it.isNotEmpty() } ?: login,
+        withoutRanges(clean, gifs.map { it.first }),
+        gifs.map { it.second },
+    )
+}
+
+/**
+ * The "gifs" tag: `start-end|id|address`, comma separated. The address is used exactly as given, as
+ * Twitch asks; a new entry starts only where a comma is followed by a position, so commas in it are safe.
+ */
+private fun chatGifs(tag: String): List<Pair<IntRange, String>> =
+    if (tag.isEmpty()) emptyList() else tag.split(Regex(",(?=\\d+-\\d+\\|)")).mapNotNull { entry ->
+        val parts = entry.split('|', limit = 3)
+        val start = parts.getOrNull(0)?.substringBefore('-')?.toIntOrNull()
+        val end = parts.getOrNull(0)?.substringAfter('-', "")?.toIntOrNull()
+        val url = parts.getOrNull(2)?.takeIf { it.startsWith("https://") }
+        if (start == null || end == null || url == null || end < start) null else (start..end) to url
+    }
+
+/** [text] without [ranges], which count characters (code points), the way Twitch counts emote positions. */
+private fun withoutRanges(text: String, ranges: List<IntRange>): String {
+    if (ranges.isEmpty()) return text
+    val points = text.codePoints().toArray()
+    if (ranges.any { it.last >= points.size }) return text
+    val kept = points.indices.filter { i -> ranges.none { i in it } }
+    return String(kept.map { points[it] }.toIntArray(), 0, kept.size).trim()
+}
+
+/** IRCv3 tag values escape `;`, spaces and backslashes. */
+private fun unescapeTag(value: String): String = buildString {
+    var i = 0
+    while (i < value.length) {
+        val c = value[i]
+        if (c == '\\' && i + 1 < value.length) {
+            when (value[i + 1]) {
+                ':' -> append(';')
+                's' -> append(' ')
+                'r' -> append('\r')
+                'n' -> append('\n')
+                else -> append(value[i + 1])
+            }
+            i += 2
+        } else {
+            append(c)
+            i++
+        }
+    }
 }
 
 /**

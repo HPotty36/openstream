@@ -117,7 +117,8 @@ open class PlatformException(message: String) : Exception(message)
 /** The channel is no longer there: deleted, terminated or renamed away. [message] says why when the platform did. */
 class ChannelGoneException(message: String) : PlatformException(message)
 
-data class ChatMessage(val id: String, val author: String, val text: String)
+/** [gifs]: addresses of GIFs sent with the message; their labels are left out of [text]. */
+data class ChatMessage(val id: String, val author: String, val text: String, val gifs: List<String> = emptyList())
 
 /**
  * What every platform has to answer. The screens and the translator only know this interface,

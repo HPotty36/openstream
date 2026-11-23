@@ -1,6 +1,13 @@
 package dev.openstream.watch
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -129,6 +136,7 @@ fun Chat(
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                message.gifs.forEach { ChatGif(it) }
                 val translated = translations[message.text]
                 if (translating && translated != null && translated != message.text) {
                     Text(translated, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
@@ -145,5 +153,34 @@ fun Chat(
                 )
             }
         }
+    }
+}
+
+/** A GIF sent in chat, at a fixed height and its own width once it has loaded. */
+@Composable
+private fun ChatGif(url: String) {
+    var ratio by remember(url) { mutableStateOf<Float?>(null) }
+    var failed by remember(url) { mutableStateOf(false) }
+    if (failed) {
+        Text(
+            "GIF를 불러오지 못했습니다.",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    } else {
+        AsyncImage(
+            model = url,
+            contentDescription = "GIF",
+            contentScale = ContentScale.Fit,
+            onSuccess = { loaded ->
+                val image = loaded.result.image
+                if (image.width > 0 && image.height > 0) ratio = image.width.toFloat() / image.height
+            },
+            onError = { failed = true },
+            modifier = Modifier.padding(top = 4.dp).height(112.dp).aspectRatio(ratio ?: 1f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        )
     }
 }

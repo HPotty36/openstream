@@ -26,6 +26,10 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.Share
+import dev.openstream.share.share
+import dev.openstream.share.shareLink
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.produceState
@@ -94,6 +98,10 @@ fun ChannelScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(end = 12.dp),
             )
+            val context = LocalContext.current
+            shareLink(channel)?.let { link ->
+                IconButton(onClick = { context.share(link, channel.name) }) { Icon(Icons.Outlined.Share, contentDescription = "공유") }
+            }
             val changes by library.changes.collectAsState()
             val subscribed by produceState<Boolean?>(null, changes, channel.id) { value = library.isSubscribed(channel) }
             when (subscribed) {

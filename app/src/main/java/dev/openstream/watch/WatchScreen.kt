@@ -107,6 +107,10 @@ import androidx.media3.ui.PlayerView
 import dev.openstream.platform.Channel
 import dev.openstream.platform.Comment
 import dev.openstream.platform.CommentImage
+import dev.openstream.share.share
+import dev.openstream.share.shareLink
+import dev.openstream.share.sharesFromTime
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
@@ -403,7 +407,7 @@ fun WatchScreen(
                 Box(Modifier.fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
                     playerBox(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp).aspectRatio(16f / 9f))
                 }
-                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, openLink, chapters, chapterIndex, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, openLink, chapters, chapterIndex, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions, position = { player.currentPosition }) { onDownload(shown, it) }
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
             else Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight(), onSeek = seekTo, onLink = openLink) {}
@@ -411,7 +415,7 @@ fun WatchScreen(
         else -> Column(Modifier.fillMaxSize()) {
             playerBox(Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f))
             val header: @Composable () -> Unit = {
-                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, openLink, chapters, chapterIndex, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, openLink, chapters, chapterIndex, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions, position = { player.currentPosition }) { onDownload(shown, it) }
                 HorizontalDivider()
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), header)
@@ -559,6 +563,8 @@ private fun Header(
     later: Boolean,
     onLater: () -> Unit,
     downloadOptions: (suspend () -> List<DownloadOption>)?,
+    /** Where playback is now, for a link that starts there. */
+    position: () -> Long = { 0L },
     onDownload: (DownloadOption) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
@@ -602,6 +608,25 @@ private fun Header(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Action(if (later) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, if (later) "저장됨" else "나중에 보기", onLater)
+            shareLink(item)?.let { link ->
+                // Partway into a video or replay, the link can start from here; otherwise it shares at once.
+                val context = LocalContext.current
+                var open by remember { mutableStateOf(false) }
+                var at by remember { mutableLongStateOf(0L) }
+                Box {
+                    Action(Icons.Outlined.Share, "공유") {
+                        at = position()
+                        if (sharesFromTime(item) && at >= 1000) open = true else context.share(link, item.title)
+                    }
+                    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                        DropdownMenuItem(text = { Text("처음부터 공유") }, onClick = { open = false; context.share(link, item.title) })
+                        DropdownMenuItem(
+                            text = { Text("${clockTime(at)}부터 공유") },
+                            onClick = { open = false; context.share(shareLink(item, at) ?: link, item.title) },
+                        )
+                    }
+                }
+            }
             if (downloadOptions != null) {
                 val scope = rememberCoroutineScope()
                 var open by remember { mutableStateOf(false) }

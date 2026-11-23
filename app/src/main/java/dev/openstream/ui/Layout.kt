@@ -31,7 +31,10 @@ fun windowLayout(): WindowLayout {
 /** A video as a tile, for the grids of the tablet layout. */
 @Composable
 fun VideoCard(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true, showPlatform: Boolean = false) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(8.dp)) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .openOrShare(dev.openstream.share.shareLink(item), item.title, onClick).padding(8.dp),
+    ) {
         Thumbnail(item, Modifier.fillMaxWidth())
         Text(
             dev.openstream.translate.autoTranslated(item.title),

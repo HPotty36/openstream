@@ -23,7 +23,7 @@ import java.net.URLDecoder
 
 /** Where a link in a description or a comment leads: something to watch here, a channel here, or a web page. */
 sealed interface LinkTarget {
-    /** [itemId] as the platform takes it; [startMs] from YouTube's t= when the link starts partway in. */
+    /** [itemId] as the platform takes it; [startMs] from the link's start time (YouTube and Twitch t=, CHZZK currentTime=). */
     data class Video(val platform: PlatformId, val itemId: String, val startMs: Long?) : LinkTarget
     data class Channel(val platform: PlatformId, val channelId: String) : LinkTarget
     data class Web(val url: String) : LinkTarget
@@ -80,12 +80,18 @@ fun linkTarget(raw: String): LinkTarget {
         }
         PlatformId.CHZZK -> when {
             first == "live" && path.getOrNull(1)?.let(CHZZK_ID::matches) == true -> LinkTarget.Video(PlatformId.CHZZK, "live:${path[1]}", null)
-            first == "video" && path.getOrNull(1)?.all(Char::isDigit) == true -> LinkTarget.Video(PlatformId.CHZZK, "video:${path[1]}", null)
+            // CHZZK's own chapter links write the start as seconds, sometimes with a fraction.
+            first == "video" && path.getOrNull(1)?.all(Char::isDigit) == true -> LinkTarget.Video(
+                PlatformId.CHZZK,
+                "video:${path[1]}",
+                query(uri.rawQuery)["currentTime"]?.toDoubleOrNull()?.takeIf { it > 0 }?.let { (it * 1000).toLong() },
+            )
             path.size == 1 && CHZZK_ID.matches(path[0]) -> LinkTarget.Channel(PlatformId.CHZZK, path[0])
             else -> LinkTarget.Web(url)
         }
         PlatformId.TWITCH -> when {
-            first == "videos" && path.getOrNull(1)?.all(Char::isDigit) == true -> LinkTarget.Video(PlatformId.TWITCH, "video:${path[1]}", null)
+            first == "videos" && path.getOrNull(1)?.all(Char::isDigit) == true ->
+                LinkTarget.Video(PlatformId.TWITCH, "video:${path[1]}", query(uri.rawQuery)["t"]?.let(::youtubeTime))
             path.size == 1 && TWITCH_LOGIN.matches(path[0]) && path[0].lowercase() !in TWITCH_PAGES ->
                 LinkTarget.Channel(PlatformId.TWITCH, path[0].lowercase())
             else -> LinkTarget.Web(url)
