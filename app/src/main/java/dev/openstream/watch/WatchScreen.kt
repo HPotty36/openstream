@@ -354,6 +354,8 @@ fun WatchScreen(
     val qualityMenu = if (source != null && source?.type != SourceType.PROGRESSIVE && variants.size > 1) {
         QualityMenu(variants, quality, qualityLabel(quality, variants, playingHeight)) { quality = it }
     } else null
+    // A time in the description or a comment jumps there; a live broadcast has nowhere to jump to.
+    val seekTo: ((Long) -> Unit)? = if (shown.kind == ItemKind.LIVE) null else ({ ms -> player.seekTo(ms); player.play() })
     when {
         pip || fullscreen -> playerBox(Modifier.fillMaxSize())
         // Wide window: the video and its description on the left, the comments in their own column.
@@ -362,19 +364,19 @@ fun WatchScreen(
                 Box(Modifier.fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
                     playerBox(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp).aspectRatio(16f / 9f))
                 }
-                Header(shown, playback, source, { source = it }, qualityMenu, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
-            else Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight()) {}
+            else Comments(platform, shown, translator, settings, Modifier.weight(1f).fillMaxHeight(), onSeek = seekTo) {}
         }
         else -> Column(Modifier.fillMaxSize()) {
             playerBox(Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f))
             val header: @Composable () -> Unit = {
-                Header(shown, playback, source, { source = it }, qualityMenu, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
+                Header(shown, playback, source, { source = it }, qualityMenu, seekTo, onChannel, subscribed, toggleSubscribed, later, toggleLater, downloadOptions) { onDownload(shown, it) }
                 HorizontalDivider()
             }
             if (shown.kind == ItemKind.LIVE) Chat(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), header)
-            else Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), header)
+            else Comments(platform, shown, translator, settings, Modifier.fillMaxSize().navigationBarsPadding(), seekTo, header)
         }
     }
 }
@@ -406,10 +408,12 @@ private fun Comments(
     translator: Translator,
     settings: AppSettings,
     modifier: Modifier,
+    onSeek: ((Long) -> Unit)? = null,
     header: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val comments = remember(item.id) { Paged(scope) { platform.comments(item.id, it) } }
+    val durationMs = item.durationSeconds?.times(1000)
     val replies = remember(item.id) { mutableStateMapOf<Int, Paged<Comment>>() }
     val translations = remember(item.id) { mutableStateMapOf<String, Translation>() }
     val keyHint by settings.apiKeyHint.collectAsState()
@@ -458,6 +462,8 @@ private fun Comments(
                         if (replies[index] != null) replies.remove(index)
                         else comment.repliesPage?.let { first -> replies[index] = Paged(scope) { platform.replies(item.id, it ?: first) } }
                     },
+                    durationMs = durationMs,
+                    onSeek = onSeek,
                 )
             }
             val thread = replies[index]
@@ -468,6 +474,8 @@ private fun Comments(
                         onTranslate = { translate(listOf(reply.text)) },
                         onHide = { translations.remove(reply.text) },
                         isReply = true,
+                        durationMs = durationMs,
+                        onSeek = onSeek,
                     )
                 }
                 item { PagedFooter(thread, empty = "답글이 없습니다.", modifier = Modifier.padding(start = 44.dp)) }
@@ -499,6 +507,7 @@ private fun Header(
     source: Source?,
     onSource: (Source) -> Unit,
     qualityMenu: QualityMenu?,
+    onSeek: ((Long) -> Unit)?,
     onChannel: (Channel) -> Unit,
     subscribed: Boolean?,
     onSubscribe: () -> Unit,
@@ -623,6 +632,8 @@ private fun Header(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 collapsedLines = 3,
+                durationMs = item.durationSeconds?.times(1000),
+                onTimestamp = onSeek,
                 modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
             )
         } else {
@@ -653,6 +664,8 @@ private fun CommentRow(
     isReply: Boolean = false,
     repliesOpen: Boolean = false,
     onReplies: (() -> Unit)? = null,
+    durationMs: Long? = null,
+    onSeek: ((Long) -> Unit)? = null,
 ) {
     Row(Modifier.fillMaxWidth().padding(start = if (isReply) 60.dp else 16.dp, end = 16.dp, top = 10.dp)) {
         Avatar(comment.authorAvatarUrl, if (isReply) 24.dp else 32.dp)
@@ -664,10 +677,10 @@ private fun CommentRow(
                 comment.publishedAt?.let { relativeTime(it) } ?: comment.publishedText,
             ).joinToString(" · ")
             Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(comment.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+            Text(withTimestamps(comment.text, durationMs, onSeek), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
             when (translation) {
                 is Translation.Done -> Text(
-                    translation.text,
+                    withTimestamps(translation.text, durationMs, onSeek),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 6.dp),

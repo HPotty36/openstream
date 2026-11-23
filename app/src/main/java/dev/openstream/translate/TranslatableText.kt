@@ -53,6 +53,9 @@ fun TranslatableText(
     kind: TextKind = TextKind.TEXT,
     auto: Boolean = false,
     collapsedLines: Int? = null,
+    // Times in the text ("1:23") become pressable and jump there; null leaves them plain.
+    durationMs: Long? = null,
+    onTimestamp: ((Long) -> Unit)? = null,
     leading: @Composable RowScope.() -> Unit = {},
 ) {
     val translator = LocalAutoTranslate.current?.translator
@@ -72,7 +75,7 @@ fun TranslatableText(
 
     Column(modifier) {
         Text(
-            if (showing) translation!! else text,
+            dev.openstream.watch.withTimestamps(if (showing) translation!! else text, durationMs, onTimestamp),
             style = style,
             color = color,
             maxLines = if (!folds || expanded) Int.MAX_VALUE else collapsedLines!!,

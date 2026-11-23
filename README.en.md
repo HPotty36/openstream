@@ -54,6 +54,7 @@ With an Anthropic API key, video titles and channel names that are neither Korea
 - **Sound only** with the screen off or another app in front
 - **SponsorBlock** skips sponsor segments on YouTube
 - **Resume** from where you stopped
+- **Timestamps**: a time like "12:34" in the description or a comment jumps there
 - **Keyboard**: Space/K play-pause, J/L/←/→ seek 10 s, F full screen
 
 ### Downloads
