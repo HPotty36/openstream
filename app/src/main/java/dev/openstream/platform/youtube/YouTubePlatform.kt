@@ -279,6 +279,7 @@ class YouTubePlatform(private val client: OkHttpClient) : StreamingPlatform {
         pinned = isPinned,
         replyCount = replyCount.coerceAtLeast(0),
         repliesPage = token(replies),
+        image = commentId?.let { CommentImages[it] },
     )
 }
 

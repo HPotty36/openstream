@@ -92,7 +92,12 @@ data class Comment(
     val replyCount: Int = 0,
     /** Goes into [StreamingPlatform.replies]; null when there are none to load. */
     val repliesPage: String? = null,
+    /** A GIF attached to the comment. */
+    val image: CommentImage? = null,
 )
+
+/** A picture in a comment, usually an animated WebP, with the size it was made at. */
+data class CommentImage(val url: String, val width: Int, val height: Int)
 
 /**
  * One way to save an item: an MP4 picture stream with an AAC sound stream, which every phone can

@@ -14,7 +14,14 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import okhttp3.OkHttpClient
 
-class App : Application() {
+class App : Application(), coil3.SingletonImageLoader.Factory {
+    /** Images as Coil loads them by default, plus GIFs and animated WebP (comment GIFs) that move. */
+    override fun newImageLoader(context: coil3.PlatformContext): coil3.ImageLoader =
+        coil3.ImageLoader.Builder(context).components {
+            if (android.os.Build.VERSION.SDK_INT >= 28) add(coil3.gif.AnimatedImageDecoder.Factory())
+            else add(coil3.gif.GifDecoder.Factory())
+        }.build()
+
     /** For work that has to finish even when the screen that started it is gone. */
     val scope = MainScope()
     val secrets: SecretStore by lazy { SecretStore() }

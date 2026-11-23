@@ -25,11 +25,14 @@ class OkHttpDownloader(private val client: OkHttpClient) : Downloader() {
         }
         client.newCall(builder.build()).execute().use { response ->
             if (response.code == 429) throw ReCaptchaException("reCaptcha Challenge requested", request.url())
+            val body = response.body.string()
+            // Comment pages come from "next"; the extractor drops their GIFs, so they are picked out here.
+            if ("/youtubei/v1/next" in request.url()) CommentImages.read(body)
             return Response(
                 response.code,
                 response.message,
                 response.headers.toMultimap(),
-                response.body.string(),
+                body,
                 response.request.url.toString(),
             )
         }

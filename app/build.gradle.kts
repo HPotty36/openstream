@@ -21,9 +21,9 @@ android {
         applicationId = "dev.openstream"
         minSdk = 26
         targetSdk = 37
-        versionCode = 10
+        versionCode = 11
         // -PversionName=… builds an older-numbered copy, to try the in-app update against a real release.
-        versionName = providers.gradleProperty("versionName").orNull ?: "0.4.5"
+        versionName = providers.gradleProperty("versionName").orNull ?: "0.4.6"
     }
     signingConfigs {
         create("release") {
@@ -84,6 +84,7 @@ dependencies {
 
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
+    implementation("io.coil-kt.coil3:coil-gif:3.6.3")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.5.1")

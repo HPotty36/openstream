@@ -106,6 +106,10 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import dev.openstream.platform.Channel
 import dev.openstream.platform.Comment
+import dev.openstream.platform.CommentImage
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import dev.openstream.platform.Playback
 import dev.openstream.platform.Source
 import dev.openstream.platform.SourceType
@@ -721,7 +725,10 @@ private fun CommentRow(
                 comment.publishedAt?.let { relativeTime(it) } ?: comment.publishedText,
             ).joinToString(" · ")
             Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(linkedText(comment.text, durationMs, onSeek, onLink), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+            if (comment.text.isNotBlank()) {
+                Text(linkedText(comment.text, durationMs, onSeek, onLink), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+            }
+            comment.image?.let { CommentGif(it) }
             when (translation) {
                 is Translation.Done -> Text(
                     linkedText(translation.text, durationMs, onSeek, onLink),
@@ -760,6 +767,32 @@ private fun CommentRow(
                 }
             }
         }
+    }
+}
+
+/** A GIF in a comment, at its own shape inside a modest box, moving as it does on YouTube. */
+@Composable
+private fun CommentGif(image: CommentImage) {
+    var failed by remember(image.url) { mutableStateOf(false) }
+    if (failed) {
+        Text(
+            "GIF를 불러오지 못했습니다.",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    } else {
+        AsyncImage(
+            model = image.url,
+            contentDescription = "GIF",
+            contentScale = ContentScale.Fit,
+            onError = { failed = true },
+            modifier = Modifier.padding(top = 6.dp)
+                .sizeIn(maxWidth = 240.dp, maxHeight = 180.dp)
+                .aspectRatio(image.width.toFloat() / image.height)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        )
     }
 }
 
