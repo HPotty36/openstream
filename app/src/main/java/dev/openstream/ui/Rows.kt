@@ -21,7 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.ui.composed
+import androidx.compose.material3.ColorScheme
+import android.content.Context
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -170,15 +171,14 @@ fun MetaLine(item: StreamItem, showChannel: Boolean, showPlatform: Boolean, modi
 }
 
 /** The frame every thumbnail sits in: a thin edge keeps dark pictures from melting into the black background. */
-fun Modifier.thumbnailFrame(): Modifier = composed {
+fun Modifier.thumbnailFrame(colors: ColorScheme): Modifier =
     aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
-        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-}
+        .background(colors.surfaceContainerHighest)
+        .border(1.dp, colors.outlineVariant, RoundedCornerShape(8.dp))
 
 @Composable
 fun Thumbnail(item: StreamItem, modifier: Modifier = Modifier) {
-    Box(modifier.thumbnailFrame()) {
+    Box(modifier.thumbnailFrame(MaterialTheme.colorScheme)) {
         AsyncImage(item.thumbnailUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         val badge = when {
             item.kind == ItemKind.LIVE -> "LIVE"
@@ -203,15 +203,14 @@ fun Thumbnail(item: StreamItem, modifier: Modifier = Modifier) {
 }
 
 /** A tap opens it; a long press shares [link], the platform's own page for it. */
-fun Modifier.openOrShare(link: String?, title: String?, onClick: () -> Unit): Modifier = composed {
-    val context = LocalContext.current
+fun Modifier.openOrShare(context: Context, link: String?, title: String?, onClick: () -> Unit): Modifier =
     if (link == null) clickable(onClick = onClick)
     else combinedClickable(onLongClickLabel = "공유", onLongClick = { context.share(link, title) }, onClick = onClick)
-}
 
 @Composable
 fun VideoRow(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true, showPlatform: Boolean = false) {
-    Row(Modifier.fillMaxWidth().openOrShare(shareLink(item), item.title, onClick).padding(horizontal = 16.dp, vertical = 8.dp)) {
+    val context = LocalContext.current
+    Row(Modifier.fillMaxWidth().openOrShare(context, shareLink(item), item.title, onClick).padding(horizontal = 16.dp, vertical = 8.dp)) {
         Thumbnail(item, Modifier.width(152.dp))
         Spacer(Modifier.width(12.dp))
         Column {
@@ -224,8 +223,9 @@ fun VideoRow(item: StreamItem, onClick: () -> Unit, showChannel: Boolean = true,
 /** [note] goes under the name; by default the platform, which a list grouped by platform does not need. */
 @Composable
 fun ChannelRow(channel: Channel, note: String? = channel.platform.label, live: Boolean = false, onClick: () -> Unit) {
+    val context = LocalContext.current
     Row(
-        Modifier.fillMaxWidth().openOrShare(shareLink(channel), channel.name, onClick).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().openOrShare(context, shareLink(channel), channel.name, onClick).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ChannelAvatar(channel, 48.dp, live = live)

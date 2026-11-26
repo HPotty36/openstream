@@ -1,5 +1,6 @@
 package dev.openstream.platform.twitch
 
+import dev.openstream.platform.ChatEmote
 import dev.openstream.platform.ChatMessage
 import dev.openstream.platform.ItemKind
 import dev.openstream.platform.SearchResult
@@ -39,6 +40,34 @@ class TwitchTest {
         // Positions count characters, so an emoji before the label takes one place, not two.
         val mixed = "@display-name=a;gifs=2-8|x|https://media.giphy.com/x.gif;id=m :a!a@a.tmi.twitch.tv PRIVMSG #c :😀 [A GIF] nice"
         assertEquals(ChatMessage("m", "a", "😀  nice", listOf("https://media.giphy.com/x.gif")), parseChatLine(mixed))
+    }
+
+    private fun emote(id: String) = "https://static-cdn.jtvnw.net/emoticons/v2/$id/default/dark/2.0"
+
+    @Test fun readsChatEmotes() {
+        val line = "@display-name=a;emotes=25:0-4,12-16/1902:6-10;id=m :a!a@a.tmi.twitch.tv PRIVMSG #c :Kappa Keepo Kappa"
+        val message = parseChatLine(line)!!
+        assertEquals("Kappa Keepo Kappa", message.text)
+        assertEquals(listOf(ChatEmote(0..4, emote("25")), ChatEmote(6..10, emote("1902")), ChatEmote(12..16, emote("25"))), message.emotes)
+
+        // Twitch counts characters; the screen counts UTF-16, where the emoji takes two.
+        val emoji = parseChatLine("@emotes=25:2-6;id=m :a!a@a.tmi.twitch.tv PRIVMSG #c :😀 Kappa")!!
+        assertEquals(listOf(ChatEmote(3..7, emote("25"))), emoji.emotes)
+        assertEquals("Kappa", emoji.text.substring(3..7))
+
+        // A GIF's label goes, and an emote after it moves along.
+        val both = parseChatLine("@emotes=25:8-12;gifs=0-6|x|https://media.giphy.com/x.gif;id=m :a!a@a.tmi.twitch.tv PRIVMSG #c :[A GIF] Kappa")!!
+        assertEquals("Kappa", both.text)
+        assertEquals(listOf(ChatEmote(0..4, emote("25"))), both.emotes)
+
+        // Positions past the end are left alone rather than trusted.
+        assertEquals(emptyList<ChatEmote>(), parseChatLine("@emotes=25:0-40;id=m :a!a@a.tmi.twitch.tv PRIVMSG #c :hi")!!.emotes)
+    }
+
+    // Tag values escape ";" as "\:" and spaces as "\s".
+    @Test fun unescapesTagValues() {
+        val line = "@gifs=0-2|x|https://a.example/c.gif?k=1\\:2\\s3;id=m :a!a@a.tmi.twitch.tv PRIVMSG #c :[G]"
+        assertEquals(listOf("https://a.example/c.gif?k=1;2 3"), parseChatLine(line)!!.gifs)
     }
 
     /** Talks to the real Twitch, so it only runs with -Plive=true. */

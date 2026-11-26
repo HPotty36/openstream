@@ -107,7 +107,7 @@ fun LibraryScreen(
                         // The same row as every other list of videos, with the picture taken from the file.
                         Row(Modifier.fillMaxWidth().clickable { onLocal(file) }.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)) {
                             val still by produceState<android.graphics.Bitmap?>(null, file.uri) { value = downloads.thumbnail(file) }
-                            Box(Modifier.width(152.dp).thumbnailFrame(), contentAlignment = Alignment.Center) {
+                            Box(Modifier.width(152.dp).thumbnailFrame(MaterialTheme.colorScheme), contentAlignment = Alignment.Center) {
                                 val picture = still
                                 if (picture != null) {
                                     Image(picture.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())

@@ -133,7 +133,8 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 
 private sealed interface Screen {
     data class OfChannel(val channel: Channel) : Screen
-    data class Watch(val item: StreamItem) : Screen
+    /** [startMs]: a link's start time, which wins over where the video was left. */
+    data class Watch(val item: StreamItem, val startMs: Long? = null) : Screen
     data class Local(val file: SavedFile) : Screen
     data object Subscriptions : Screen
     data object RefreshFailures : Screen
@@ -161,12 +162,28 @@ private fun Root(app: App) {
     val openInBrowser: (String) -> Unit = { url ->
         runCatching { uriHandler.openUri(if (url.startsWith("www.", ignoreCase = true)) "https://$url" else url) }
     }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // One channel lookup at a time, so a second tap while the first is on its way opens nothing twice.
+    var openingChannel by remember { mutableStateOf(false) }
     val openLink: (String) -> Unit = { url ->
         when (val target = dev.openstream.watch.linkTarget(url)) {
-            is dev.openstream.watch.LinkTarget.Video -> stack.add(Screen.Watch(target.toItem()))
-            is dev.openstream.watch.LinkTarget.Channel -> scope.launch {
-                val channel = runCatching { app.platform(target.platform)?.channel(target.channelId) }.getOrNull()
-                if (channel != null) stack.add(Screen.OfChannel(channel)) else openInBrowser(url)
+            is dev.openstream.watch.LinkTarget.Video -> stack.add(Screen.Watch(target.toItem(), target.startMs))
+            is dev.openstream.watch.LinkTarget.Channel -> if (!openingChannel) {
+                openingChannel = true
+                scope.launch {
+                    // A slow answer gets a word, so the tap does not look ignored.
+                    val notice = launch {
+                        kotlinx.coroutines.delay(500)
+                        android.widget.Toast.makeText(context, "채널을 불러오는 중입니다.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    try {
+                        val channel = runCatching { app.platform(target.platform)?.channel(target.channelId) }.getOrNull()
+                        if (channel != null) stack.add(Screen.OfChannel(channel)) else openInBrowser(url)
+                    } finally {
+                        notice.cancel()
+                        openingChannel = false
+                    }
+                }
             }
             is dev.openstream.watch.LinkTarget.Web -> openInBrowser(target.url)
         }
@@ -245,6 +262,7 @@ private fun Root(app: App) {
                         )
                         is Screen.Watch -> WatchScreen(
                             app.platform(screen.item.platform) ?: app.youtube, screen.item, app.settings, app.translator,
+                            startAt = screen.startMs,
                             active = index == stack.lastIndex,
                             pip = pip,
                             keys = app.playerKeys,

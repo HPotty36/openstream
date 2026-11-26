@@ -173,6 +173,8 @@ fun WatchScreen(
     item: StreamItem,
     settings: AppSettings,
     translator: Translator,
+    /** Where to start, from a link's time; null starts where the video was left. */
+    startAt: Long? = null,
     active: Boolean,
     pip: Boolean,
     keys: Flow<Int>,
@@ -241,8 +243,8 @@ fun WatchScreen(
             if (loaded.item.kind != ItemKind.LIVE) {
                 val left = library.position(loaded.item)
                 val length = (loaded.item.durationSeconds ?: Long.MAX_VALUE / 1000) * 1000
-                // A video left in its last seconds starts over.
-                resumeAt = if (left < length - 10_000) left else 0
+                // A link's time comes first; a video left in its last seconds starts over.
+                resumeAt = startAt?.takeIf { it < length } ?: if (left < length - 10_000) left else 0
             }
             onProgress(loaded.item, resumeAt)
             playback = loaded

@@ -8,6 +8,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.unit.sp
+import dev.openstream.platform.words
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -83,7 +91,8 @@ fun Chat(
         if (!translating) return@LaunchedEffect
         translateError = null
         while (true) {
-            val batch = messages.takeLast(ROUND_SIZE * 2).map { it.text }.distinct()
+            // Words only: emote names are not language, and a message of emotes has nothing to translate.
+            val batch = messages.takeLast(ROUND_SIZE * 2).map { it.words }.distinct()
                 .filter { needsTranslation(it) && it !in translations }.takeLast(ROUND_SIZE)
             if (batch.isNotEmpty()) {
                 try {
@@ -128,17 +137,10 @@ fun Chat(
         items(messages) { message ->
             val author = MaterialTheme.colorScheme.onSurfaceVariant
             Column(Modifier.padding(horizontal = 16.dp, vertical = 3.dp)) {
-                Text(
-                    buildAnnotatedString {
-                        withStyle(SpanStyle(color = author, fontWeight = FontWeight.Medium)) { append(message.author) }
-                        append("  ")
-                        append(message.text)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                ChatLine(message, author)
                 message.gifs.forEach { ChatGif(it) }
-                val translated = translations[message.text]
-                if (translating && translated != null && translated != message.text) {
+                val translated = translations[message.words]
+                if (translating && translated != null && translated != message.words) {
                     Text(translated, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                 }
             }
@@ -184,3 +186,34 @@ private fun ChatGif(url: String) {
         )
     }
 }
+
+/** The author, then the message, with each emote drawn where its name is. */
+@Composable
+private fun ChatLine(message: ChatMessage, authorColor: Color) {
+    val emotes = remember(message) { message.emotes.sortedBy { it.range.first } }
+    val line = remember(message, authorColor) {
+        buildAnnotatedString {
+            withStyle(SpanStyle(color = authorColor, fontWeight = FontWeight.Medium)) { append(message.author) }
+            append("  ")
+            var last = 0
+            emotes.forEach { emote ->
+                if (emote.range.first < last) return@forEach
+                append(message.text.substring(last, emote.range.first))
+                appendInlineContent(emote.url, message.text.substring(emote.range))
+                last = emote.range.last + 1
+            }
+            append(message.text.substring(last))
+        }
+    }
+    // One drawing per picture; the name rides along as what a screen reader says.
+    val pictures = remember(message) {
+        emotes.map { it.url }.distinct().associateWith { url ->
+            InlineTextContent(Placeholder(EMOTE_SIZE, EMOTE_SIZE, PlaceholderVerticalAlign.TextCenter)) { name ->
+                AsyncImage(url, contentDescription = name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+            }
+        }
+    }
+    Text(line, inlineContent = pictures, style = MaterialTheme.typography.bodyMedium)
+}
+
+private val EMOTE_SIZE = 22.sp

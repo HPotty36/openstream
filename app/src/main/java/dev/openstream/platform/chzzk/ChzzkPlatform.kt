@@ -3,6 +3,8 @@ package dev.openstream.platform.chzzk
 import dev.openstream.platform.Channel
 import dev.openstream.platform.ChannelTab
 import dev.openstream.platform.ChatMessage
+import dev.openstream.platform.ChatEmote
+import dev.openstream.platform.trimmed
 import dev.openstream.platform.Comment
 import dev.openstream.platform.DownloadOption
 import dev.openstream.platform.ItemKind
@@ -54,6 +56,31 @@ private fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)?
 private fun JsonObject.flag(key: String): Boolean = (this[key] as? JsonPrimitive)?.booleanOrNull == true
 private fun JsonObject.child(key: String): JsonObject? = this[key] as? JsonObject
 private fun JsonObject.list(key: String): List<JsonObject> = (this[key] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
+
+private val EMOJI = Regex("\\{:([^:{}\\s]+):\\}")
+
+/**
+ * A chat line as CHZZK sends it: emojis are written `{:name:}` in [msg], and [extras], a JSON string, maps
+ * each name to its picture. The name stays in the text where the picture goes; one with no picture stays as written.
+ */
+fun chzzkChatText(msg: String, extras: String?): Pair<String, List<ChatEmote>> {
+    val pictures = extras?.let { runCatching { Json.parseToJsonElement(it).jsonObject["emojis"] as? JsonObject }.getOrNull() }
+        ?.mapNotNull { (name, url) -> (url as? JsonPrimitive)?.contentOrNull?.takeIf { it.startsWith("https://") }?.let { name to it } }
+        ?.toMap().orEmpty()
+    val out = StringBuilder()
+    val marks = mutableListOf<ChatEmote>()
+    var last = 0
+    for (match in EMOJI.findAll(msg)) {
+        val url = pictures[match.groupValues[1]] ?: continue
+        out.append(msg, last, match.range.first)
+        val from = out.length
+        out.append(match.groupValues[1])
+        marks += ChatEmote(from until out.length, url)
+        last = match.range.last + 1
+    }
+    out.append(msg, last, msg.length)
+    return trimmed(out.toString(), marks)
+}
 
 /**
  * CHZZK through the API its own website uses. Nothing here is documented by Naver and none of it
@@ -238,10 +265,11 @@ class ChzzkPlatform(private val client: OkHttpClient) : StreamingPlatform {
                     // The server asks whether we are still here.
                     0 -> webSocket.send("""{"ver":"3","cmd":10000}""")
                     93101 -> message.list("bdy").forEach { chat ->
-                        val text = chat.text("msg")?.takeIf { it.isNotBlank() } ?: return@forEach
+                        val raw = chat.text("msg")?.takeIf { it.isNotBlank() } ?: return@forEach
                         val nickname = chat.text("profile")
                             ?.let { runCatching { Json.parseToJsonElement(it).jsonObject.text("nickname") }.getOrNull() }
-                        trySend(ChatMessage("${chat.long("msgTime")}-${chat.text("uid")}", nickname ?: "익명", text))
+                        val (text, emotes) = chzzkChatText(raw, chat.text("extras"))
+                        trySend(ChatMessage("${chat.long("msgTime")}-${chat.text("uid")}", nickname ?: "익명", text, emotes = emotes))
                     }
                 }
             }

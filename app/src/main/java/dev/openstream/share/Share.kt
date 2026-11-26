@@ -1,6 +1,8 @@
 package dev.openstream.share
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import dev.openstream.platform.Channel
 import dev.openstream.platform.ItemKind
@@ -55,5 +57,11 @@ private fun twitchTime(seconds: Long): String = buildString {
 fun Context.share(link: String, title: String?) {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link)
     title?.takeIf { it.isNotBlank() }?.let { send.putExtra(Intent.EXTRA_TITLE, it) }
-    startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    val chooser = Intent.createChooser(send, null)
+    // From a screen the sheet opens over it; from anywhere else it needs a task of its own.
+    if (activity() == null) chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    startActivity(chooser)
 }
+
+private fun Context.activity(): Activity? =
+    generateSequence(this) { (it as? ContextWrapper)?.baseContext }.firstNotNullOfOrNull { it as? Activity }

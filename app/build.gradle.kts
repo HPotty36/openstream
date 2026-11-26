@@ -21,9 +21,9 @@ android {
         applicationId = "dev.openstream"
         minSdk = 26
         targetSdk = 37
-        versionCode = 12
+        versionCode = 13
         // -PversionName=… builds an older-numbered copy, to try the in-app update against a real release.
-        versionName = providers.gradleProperty("versionName").orNull ?: "0.4.7"
+        versionName = providers.gradleProperty("versionName").orNull ?: "0.4.8"
     }
     signingConfigs {
         create("release") {

@@ -4,6 +4,7 @@ import dev.openstream.platform.Channel
 import dev.openstream.platform.ChannelGoneException
 import dev.openstream.platform.ChannelTab
 import dev.openstream.platform.ChatMessage
+import dev.openstream.platform.chatText
 import dev.openstream.platform.Comment
 import dev.openstream.platform.DownloadOption
 import dev.openstream.platform.ItemKind
@@ -70,12 +71,28 @@ fun parseChatLine(line: String): ChatMessage? {
     // "/me" messages arrive wrapped in a control character.
     val clean = text.removePrefix("\u0001ACTION ").removeSuffix("\u0001")
     val gifs = chatGifs(tags["gifs"]?.let(::unescapeTag).orEmpty())
+    val (shown, emotes) = chatText(clean, drop = gifs.map { it.first }, emotes = chatEmotes(tags["emotes"].orEmpty()))
     return ChatMessage(
         tags["id"] ?: "${login}-${text.hashCode()}",
         tags["display-name"]?.takeIf { it.isNotEmpty() } ?: login,
-        withoutRanges(clean, gifs.map { it.first }),
+        shown,
         gifs.map { it.second },
+        emotes,
     )
+}
+
+/**
+ * The "emotes" tag: `id:start-end,start-end/id:start-end`. "default" serves the moving version of an
+ * animated emote and the still one otherwise; 2.0 stays sharp at the size the chat shows it.
+ */
+private fun chatEmotes(tag: String): List<Pair<IntRange, String>> = tag.split('/').flatMap { entry ->
+    val id = entry.substringBefore(':')
+    entry.substringAfter(':', "").split(',').mapNotNull { span ->
+        val start = span.substringBefore('-').toIntOrNull()
+        val end = span.substringAfter('-', "").toIntOrNull()
+        if (id.isEmpty() || start == null || end == null) null
+        else (start..end) to "https://static-cdn.jtvnw.net/emoticons/v2/$id/default/dark/2.0"
+    }
 }
 
 /**
@@ -90,15 +107,6 @@ private fun chatGifs(tag: String): List<Pair<IntRange, String>> =
         val url = parts.getOrNull(2)?.takeIf { it.startsWith("https://") }
         if (start == null || end == null || url == null || end < start) null else (start..end) to url
     }
-
-/** [text] without [ranges], which count characters (code points), the way Twitch counts emote positions. */
-private fun withoutRanges(text: String, ranges: List<IntRange>): String {
-    if (ranges.isEmpty()) return text
-    val points = text.codePoints().toArray()
-    if (ranges.any { it.last >= points.size }) return text
-    val kept = points.indices.filter { i -> ranges.none { i in it } }
-    return String(kept.map { points[it] }.toIntArray(), 0, kept.size).trim()
-}
 
 /** IRCv3 tag values escape `;`, spaces and backslashes. */
 private fun unescapeTag(value: String): String = buildString {
